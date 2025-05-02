@@ -1,0 +1,45 @@
+---
+title: "Datenset"
+output: html_document
+date: "2025-04-30"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+MS_Table <- read.table("~/Downloads/RDeeP_HeLa_Interphase.csv", header=TRUE, row.names=1, sep = ";")
+```
+
+```{r}
+MS_Table
+```
+
+```{r}
+# Dimenseion der Tabelle:
+dim(MS_Table)
+```
+
+Beschreibung des Datensatzes:
+
+-   7,086 unterschiedliche Proteine
+-   jeweils 25 Fractions = 3 Wiederholungsmessungen
+-   einmal RNase, einmal Controlle
+
+```{r}
+# Anzahl an fehlender Werte
+sum(MS_Table == 0).  # 689470 von 830579159359
+# > wie wollen wir die Daten aufräumen bzw ersätzen, oder muss man das gar nicht
+```
+
+
+
+**Mögliche Fragestellungen:**
+
+
+
+
+
+
