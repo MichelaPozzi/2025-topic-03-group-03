@@ -8,13 +8,15 @@ date: "2025-04-30"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-
+Der Weg damit es lokal auf dem Rechner unter dem passenden Ort gespeichert ist
 ```{r}
-MS_Table <- read.table("~/Downloads/RDeeP_HeLa_Interphase.csv", header=TRUE, row.names=1, sep = ";")
+# MS_Table <- read.table("~/Downloads/RDeeP_HeLa_Interphase.csv", header=TRUE, row.names=1, sep = ";")
 ```
 
+
+Der Weg damit es nur im richtigen Abstand zu dem verwendeten Markdown ist > so können wir später auch nach jedem Step unsrere Daten speichern und so öffnen
 ```{r}
-MS_Table
+MS_Table <- read.table("RDeeP_HeLa_Interphase.csv", header=TRUE, row.names=1, sep = ";")
 ```
 
 ```{r}
