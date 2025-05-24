@@ -9,37 +9,117 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 Der Weg damit es lokal auf dem Rechner unter dem passenden Ort gespeichert ist
+
 ```{r}
 # MS_Table <- read.table("~/Downloads/RDeeP_HeLa_Interphase.csv", header=TRUE, row.names=1, sep = ";")
 ```
 
+Der Weg damit es nur im richtigen Abstand zu dem verwendeten Markdown ist \> so können wir später auch nach jedem Step unsrere Daten speichern und so öffnen
 
-Der Weg damit es nur im richtigen Abstand zu dem verwendeten Markdown ist > so können wir später auch nach jedem Step unsrere Daten speichern und so öffnen
 ```{r}
 MS_Table <- read.table("RDeeP_HeLa_Interphase.csv", header=TRUE, row.names=1, sep = ";")
 ```
 
+##Beschreibung der Daten
+
+#Dimenseion der Tabelle:
+
 ```{r}
-# Dimenseion der Tabelle:
 dim(MS_Table)
 ```
 
-Beschreibung des Datensatzes:
+# Spaltennamen
 
--   7,086 unterschiedliche Proteine
--   jeweils 25 Fractions = 3 Wiederholungsmessungen
--   einmal RNase, einmal Kontrolle
+```{r}
+colnames(MS_Table)
+```
+
+# Reihennamen
+
+```{r}
+rownames(MS_Table)
+```
+
+# Anzahl fehlender Werte
+
+```{r}
+sum(is.na(MS_Table))
+```
+
+# Überprüfen ob die Werte alle numeric sind
+
+```{r}
+sum(sapply(MS_Table, is.numeric))
+# da kommt 150 raus > heißt alle spalten sind numerisch 
+```
+
+### Reproduzierbarkeit Spaltenweise normierung damit mann jeweils 2 Replikate miteinander vergleichen kann den max Wert pro Spalte und dann
+
+```{r}
+# Mittelwert von jeder Spalte
+colMeans(MS_Table)
+```
+
+scatterPlot beispielhaft als Deliverable Reprodzierbarkeit !!! muss aber noch normalisiert werden !!!
+
+```{r}
+con.1.1 = MS_Table[,1]
+con.1.2 = MS_Table[,2]
+
+plot(con.1.1, con.1.2, 
+     pch = 20,
+     xlab = 'con.1.1',
+     ylab = 'con.1.2',
+     
+     )
+
+# linie!!
+```
+
+Pearson oder Spearmean =>  ohne Ränke weil wir ganz viele Nullen haben !! heißt Pearson 
+
+Untertabellen damit man immer den gleichen Code verwenden kann (also immer 1,2,3)
+
+```{r}
+# Vektor für Korrelationen zwischen Spalten 1 & 2
+kor_Spalte1_Spalte2 = c()
+for (i in 1:50) {
+  spalten_index = ((i-1) * 3 + 1):(i * 3) # pro loop 3 Spalten zusammen
+  teilmatrix = MS_Table[,spalten_index] # die Untertabellen für jede einzelne Fraktion
+  
+  kor_a = cor(teilmatrix[,1], teilmatrix[,2], method = 'pearson') # Pearsonkorrelation von Spalte 1 & 2
+  kor_Spalte1_Spalte2 = c(kor_Spalte1_Spalte2,kor_a) # an Vektor anhängen
+}
+
+kor_Spalte1_Spalte2
+```
 
 
-Normalisierung:
--   Mittelwerte / eventuell Standardabweichung 
+```{r}
+# Vektor für Korrelationen zwischen Spalten 2 & 3
+kor_Spalte2_Spalte3 = c()
+for (i in 1:50) {
+  spalten_index = ((i-1) * 3 + 1):(i * 3) # pro loop 3 Spalten zusammen
+  teilmatrix = MS_Table[,spalten_index] # die Untertabellen für jede einzelne Fraktion
+  
+  kor_b = cor(teilmatrix[,2], teilmatrix[,3], method = 'pearson') # Pearsonkorrelation von Spalte 2 & 3
+  kor_Spalte2_Spalte3 = c(kor_Spalte2_Spalte3,kor_b) # an Vektor anhängen
+}
+
+kor_Spalte2_Spalte3
+```
 
 
+```{r}
+# Vektor für Korrelationen zwischen Spalten 1 & 3
+kor_Spalte1_Spalte3 = c()
+for (i in 1:50) {
+  spalten_index = ((i-1) * 3 + 1):(i * 3) # pro loop 3 Spalten zusammen
+  teilmatrix = MS_Table[,spalten_index] # die Untertabellen für jede einzelne Fraktion
+  
+  kor_c = cor(teilmatrix[,2], teilmatrix[,3], method = 'pearson') # Pearsonkorrelation von Spalte 1 & 3
+  kor_Spalte1_Spalte3 = c(kor_Spalte1_Spalte3,kor_c) # an Vektor anhängen
+}
 
-**Mögliche Fragestellungen:**
-
-
-
-
-
-
+kor_Spalte1_Spalte3
+```
