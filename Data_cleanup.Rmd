@@ -46,7 +46,8 @@ sum(is.na(MS_Table))
 
 ```{r}
 sum(sapply(MS_Table, is.numeric))
-# 150 > heißt alle spalten sind numerisch
+# da kommt 150 raus > heißt alle spalten sind numerisch 
+# alternativ unique(sapply(MS_Table, class)) => gibt 'numeric'
 ```
 
 # Normierung
@@ -124,7 +125,7 @@ r-Wert als Grenze: ... ob zwischen zwei Replikaten zu große Varianz besteht
 mind. 0,9 ???
 
 ```{r}
-# scatterplot beispielhaft für 2 Replikate der gleichen Fraktion des gleichen treatments als Deliverable für Reproduzierbarkeit
+# scatterPlot beispielhaft als Deliverable Reprodzierbarkeit
 Crtl.1.1 = MS_Table[,1]
 Crtl.1.2 = MS_Table[,2]
 
