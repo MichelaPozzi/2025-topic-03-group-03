@@ -80,18 +80,6 @@ for (i in 1:50) {
 ```
 
 ```{r}
-# Mittelwerte von den Spalten jeweils als einzellne Tabelle
-for (i in 1:50) {
-  spalten_index = ((i-1) * 3 + 1):(i * 3) # pro loop 3 Spalten zusammen
-  teilmatrix = MS_Table[,spalten_index]
-  
-  Mittelwerte = as.data.frame(t(colMeans(teilmatrix))) # t steht für transponieren
-  
-  assign(paste0('mean_', Fraktionsnamen[i]), Mittelwerte) # wählt gleich den passenden Namen dazu aus
-}
-```
-
-```{r}
 # Mittelwerte von den Spalten jeweils als Vektor
 for (i in 1:50) {
   spalten_index = ((i-1) * 3 + 1):(i * 3) # pro loop 3 Spalten zusammen
@@ -188,6 +176,8 @@ for (i in 1:6) {
 
 matrizen <- list(SW_Ctrl1_norm,SW_Ctrl2_norm,SW_Ctrl3_norm,SW_RNAse1_norm,SW_RNAse2_norm,SW_RNAse3_norm)
 
+MS_Table_norm = c()
+
 for (i in 1:25) {
   for (j in 1:6) {
     MS_Table_norm = as.data.frame(cbind(MS_Table_norm, matrizen[[j]][, i]))
@@ -215,7 +205,7 @@ for (i in 1:50) {
   spalten_index = ((i-1) * 3 + 1):(i * 3) # pro loop 3 Spalten zusammen
   teilmatrix = MS_Table_norm[,spalten_index] # die Untertabellen für jede einzelne Fraktion
   
-  kor_a = cor(teilmatrix[,1], teilmatrix[,2], method = 'pearson') # Pearsonkorrelation von Spalte 1 & 2
+  kor_a = cor(teilmatrix[,1], teilmatrix[,2], method = 'pearson', use = "complete.obs") # Pearsonkorrelation von Spalte 1 & 2
   kor_Spalte1_Spalte2 = c(kor_Spalte1_Spalte2,kor_a) # an Vektor anhängen
 }
 
@@ -229,7 +219,7 @@ for (i in 1:50) {
   spalten_index = ((i-1) * 3 + 1):(i * 3) # pro loop 3 Spalten zusammen
   teilmatrix = MS_Table_norm[,spalten_index] # die Untertabellen für jede einzelne Fraktion
   
-  kor_b = cor(teilmatrix[,2], teilmatrix[,3], method = 'pearson') # Pearsonkorrelation von Spalte 2 & 3
+  kor_b = cor(teilmatrix[,2], teilmatrix[,3], method = 'pearson', use = "complete.obs") # Pearsonkorrelation von Spalte 2 & 3
   kor_Spalte2_Spalte3 = c(kor_Spalte2_Spalte3,kor_b) # an Vektor anhängen
 }
 
@@ -243,7 +233,7 @@ for (i in 1:50) {
   spalten_index = ((i-1) * 3 + 1):(i * 3) # pro loop 3 Spalten zusammen
   teilmatrix = MS_Table_norm[,spalten_index] # die Untertabellen für jede einzelne Fraktion
   
-  kor_c = cor(teilmatrix[,2], teilmatrix[,3], method = 'pearson') # Pearsonkorrelation von Spalte 1 & 3
+  kor_c = cor(teilmatrix[,2], teilmatrix[,3], method = 'pearson', use = "complete.obs") # Pearsonkorrelation von Spalte 1 & 3
   kor_Spalte1_Spalte3 = c(kor_Spalte1_Spalte3,kor_c) # an Vektor anhängen
 }
 
