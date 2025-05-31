@@ -32,6 +32,11 @@ SW_Replikatsnamen = c('SW_Ctrl1','SW_Ctrl2','SW_Ctrl3','SW_RNAse1','SW_RNAse2','
 SW_Replikatsnamen_norm = c('SW_Ctrl1_norm','SW_Ctrl2_norm','SW_Ctrl3_norm','SW_RNAse1_norm','SW_RNAse2_norm','SW_RNAse3_norm')
 ```
 
+```{r}
+Treatmentnamen = c('Ctrl1_norm','Ctrl2_norm','Ctrl3_norm','RNAse1_norm','RNAse2_norm','RNAse3_norm')
+
+```
+
 # Beschreibung der Daten
 
 ### Dimensionen der Tabelle:
@@ -66,8 +71,6 @@ sum(sapply(MS_Table, is.numeric))
 ```
 
 # Normierung
-
-!! Spaltenweise Normierung damit mann jeweils 2 Replikate miteinander vergleichen kann den max Wert pro Spalte und dann !!
 
 ```{r}
 # Erstellen von subtabellen
@@ -156,6 +159,7 @@ for (i in 1:6) {
 for (i in 1:6) {
   
   teilmatrix = data.frame(get(Replikatsnamen[i])[1], (get(Replikatsnamen[i])[1:23] + get(Replikatsnamen[i])[2:24] + get(Replikatsnamen[i])[3:25]) / 3, get(Replikatsnamen[i])[25]) # 
+  
   
   assign(SW_Replikatsnamen[i], teilmatrix) # wählt gleich den passenden Namen dazu aus
 }
@@ -246,15 +250,6 @@ rownames(kor_tabelle) = Fraktionsnamen
 kor_tabelle
 ```
 
-r-Wert als Grenze: ... ob zwischen zwei Replikaten zu große Varianz besteht
-
-mind. 0,9 ???
-```{r}
-
-```
-
-
-
 ```{r}
 # scatterPlot beispielhaft als Deliverable Reprodzierbarkeit
 Crtl.1.1 = MS_Table_norm[,1]
@@ -265,3 +260,47 @@ plot(Crtl.1.1, Crtl.1.2,
      xlab = 'Crtl.1.1',
      ylab = 'Crtl.1.2',)
 ```
+
+```{r}
+# pairs(MS_Table_norm[1:9], pch=20, cex=0.5)
+# vielleicht so ähnlich, aber übersichtlicher, soll das aufs Plakat?
+```
+```{r}
+max(MS_Table_norm[1,])
+```
+# Data exploration
+```{r}
+for (i in 1:6) {
+
+  spalten_index = seq(from = i, to = 150, by = 6) 
+  teilmatrix = MS_Table_norm[, spalten_index]
+  
+  assign(Treatmentnamen[i], teilmatrix) # neue Subtabellen, richtig benannt
+}
+```
+
+
+```{r}
+for (i in 1:6) {
+  Tabelle = get(Treatmentnamen[i])
+  
+  # Maximalwert pro Zeile (y)
+  abs.Max = c(apply(Tabelle, 1, max))
+  
+  # Spaltenindex (x als Position)
+ Fraktion = c(apply(Tabelle, 1, which.max))
+  
+  # Erstelle einen Dataframe mit x und y
+  teildata = cbind(
+    Fraktion, abs.Max
+  )
+  
+  # Speichere den Dataframe z.B. als maxima_df1, maxima_df2, ...
+  assign(paste0('abs.Max_', Treatmentnamen[i]), teildata)
+}
+
+```
+
+
+
+
