@@ -1,0 +1,75 @@
+---
+title: "Exploration"
+output: html_document
+date: "2025-05-31"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Nächste Steps
+
+letzter Stand:
+- abs. Maxima von allen Replikaten
+- Noch verändern: lokale Maxima finden > geht schon aber da kommt ne sehr beschissene Liste raus
+  Alternative Funktion finden > oder die noch vereinfachen weil das schon sehr aus dem nichts => mit Mika nochmal rücksprache halten was besser ist 
+  
+  
+  
+## Ziel für Dienstag
+
+das mit den Gaus Fit zu erledigen
+=> Kriterien für Zuordung / lineare Regression
+
+
+## Für Leerlauf-Zeit:
+- genau nach vollziehen was im Paper steht
+- was müssen wir machen => warum sollen wir das machen
+- mit welchen WERTEN !!!!!
+- 
+
+
+------------------------------------------------------------------------
+
+### 🟩 **Was im Protokoll gemacht wurde:**
+
+1️⃣ **Teil 2 (Peaks & Fit-Parameter)** Das Gauß-Fitting in Teil 2 wurde auf den **gemittelten Profilen** (also dem Durchschnitt aus je drei Replikaten) gemacht:
+
+-   **1 Mittelwert-Kurve** für Kontrolle (CTRL)
+-   **1 Mittelwert-Kurve** für RNase
+
+➡️ Ziel:
+
+-   **robuste Erkennung von Maxima und Schultern**
+-   „globale“ Fit-Parameter (Amplitude, Lage, Breite) der **Durchschnittskurve** pro Protein und Bedingung
+-   diese Maxima-Positionen dienen als „Startpunkte“ für die Fits in Teil 3
+
+------------------------------------------------------------------------
+
+2️⃣ **Teil 3 (Gaussian Fit auf Einzeldaten)** Hier wurde das **Gauß-Fitting für alle 6 Replikate einzeln** durchgeführt!
+
+-   **3 Replikate für Kontrolle (ctrl1, ctrl2, ctrl3)**
+-   **3 Replikate für RNase (rnase1, rnase2, rnase3)**
+
+➡️ Ziel:
+
+-   **individuelle Fit-Parameter** pro Replikat (z.B. Amplitude = Proteinmenge in diesem Peak in diesem Replikat!)
+-   diese Werte werden später (Teil 5) mit einem **t-Test** zwischen den Bedingungen (CTRL vs. RNase) verglichen.
+
+------------------------------------------------------------------------
+
+### 🟡 **Zusammengefasst:**
+
+| Phase | Datenbasis | Ziel |
+|---------------|------------------|---------------------------------------|
+| **Teil 2** | Mittelwert-Kurve aus 3 Replikaten | Finden von Peaks und deren Startparameter (robust, stabil) |
+| **Teil 3** | 6 Replikat-Kurven (je Protein) | Fit-Parameter (Amplitude, Position, Breite) pro Replikat ermitteln |
+
+------------------------------------------------------------------------
+
+✅ **Also: Das finale Gauß-Fitting für die t-Tests wird an allen 6 Replikaten gemacht!** ❌ **Nicht nur auf den Mittelwerten!** ✅ Aber die Mittelwert-Kurve liefert die „guten Startwerte“, damit die Fits bei den Einzel-Replikaten stabiler sind.
+
+------------------------------------------------------------------------
+
+💡 **Falls du möchtest**, kann ich dir das gerne auch als „Schema“ zeichnen (z.B. Flowchart), wie das Protokoll hier abläuft! 🚀
