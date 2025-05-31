@@ -278,69 +278,7 @@ plot(Crtl.1.1, Crtl.1.2,
 ```
 
 Skript damit die Tabelle als csv. gespeichert wird > direkt da auf Github > und. in nächstem Dokument dann runterladen
-
-
-# Data exploration
 ```{r}
-for (i in 1:6) {
-
-  spalten_index = seq(from = i, to = 150, by = 6) 
-  teilmatrix = MS_Table_norm[, spalten_index]
-  
-  assign(Treatmentnamen[i], teilmatrix) # neue Subtabellen, richtig benannt
-}
-```
-
-```{r}
-# absolute Maxima bestimmen: in welcher Fraktion und welcher Wert
-for (i in 1:6) {
-  Tabelle = get(Treatmentnamen[i])
-  
-  abs.Max = c(apply(Tabelle, 1, max)) # Maximum pro Protein
-  Fraktion = c(apply(Tabelle, 1, which.max))
-  
-  teildata = cbind(Fraktion, abs.Max)
-  
-  assign(paste0('abs.Max_', Treatmentnamen[i]), teildata) # 6 Matritzen mit Maxima-Werten in zugehöriger Funktion
-}
-
-```
-
-```{r}
-plot(1:25, Ctrl1_norm[8,], type = "l", col = "blue",
-     xlab = "Fraktion", ylab = "Intensität", main = "Proteinverteilung")
-
-```
-
-
-```{r}
-# Lokale Maxima bestimmen:
-
-# RÄNDER !!!!!!!!!
-find_local_maxima_table <- function(mat) {
-  result <- do.call(rbind, lapply(1:nrow(mat), function(i) {
-    x <- mat[i, ]
-    idx <- which(diff(sign(diff(x))) == -2) + 1
-    if (length(idx) > 0) {
-      data.frame(
-        Zeile = i,
-        Fraktion = idx,
-        Wert = x[idx]
-      )
-    } else {
-      NULL
-    }
-  }))
-  rownames(result) <- NULL
-  return(result)
-}
-
-mat <- as.matrix(sapply(Ctrl1_norm, as.numeric))
-find_local_maxima_table(mat)
-```
-
-
-```{r}
-write.csv(MS_Table_norm, file = "MS_Table.norm.csv")
+# write.csv(MS_Table_norm, file = "MS_Table.norm.csv")
 ```
 

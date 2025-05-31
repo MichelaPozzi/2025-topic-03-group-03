@@ -8,27 +8,70 @@ date: "2025-05-31"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Nächste Steps
 
-letzter Stand:
-- abs. Maxima von allen Replikaten
-- Noch verändern: lokale Maxima finden > geht schon aber da kommt ne sehr beschissene Liste raus
-  Alternative Funktion finden > oder die noch vereinfachen weil das schon sehr aus dem nichts => mit Mika nochmal rücksprache halten was besser ist 
+```{r}
+MS_Table_norm = read.table("MS_Table.norm.csv", header=TRUE, row.names=1, sep = ",")
+```
+
+# Data exploration
+```{r}
+for (i in 1:6) {
+
+  spalten_index = seq(from = i, to = 150, by = 6) 
+  teilmatrix = MS_Table_norm[, spalten_index]
   
+  assign(Treatmentnamen[i], teilmatrix) # neue Subtabellen, richtig benannt
+}
+```
+
+```{r}
+# absolute Maxima bestimmen: in welcher Fraktion und welcher Wert
+for (i in 1:6) {
+  Tabelle = get(Treatmentnamen[i])
   
+  abs.Max = c(apply(Tabelle, 1, max)) # Maximum pro Protein
+  Fraktion = c(apply(Tabelle, 1, which.max))
   
-## Ziel für Dienstag
+  teildata = cbind(Fraktion, abs.Max)
+  
+  assign(paste0('abs.Max_', Treatmentnamen[i]), teildata) # 6 Matritzen mit Maxima-Werten in zugehöriger Funktion
+}
 
-das mit den Gaus Fit zu erledigen
-=> Kriterien für Zuordung / lineare Regression
+```
 
+```{r}
+plot(1:25, Ctrl1_norm[8,], type = "l", col = "blue",
+     xlab = "Fraktion", ylab = "Intensität", main = "Proteinverteilung")
 
-## Für Leerlauf-Zeit:
-- genau nach vollziehen was im Paper steht
-- was müssen wir machen => warum sollen wir das machen
-- mit welchen WERTEN !!!!!
-- 
+```
 
+```{r}
+# Lokale Maxima bestimmen:
+
+# RÄNDER !!!!!!!!!
+find_local_maxima_table <- function(mat) {
+  result <- do.call(rbind, lapply(1:nrow(mat), function(i) {
+    x <- mat[i, ]
+    idx <- which(diff(sign(diff(x))) == -2) + 1
+    if (length(idx) > 0) {
+      data.frame(
+        Zeile = i,
+        Fraktion = idx,
+        Wert = x[idx]
+      )
+    } else {
+      NULL
+    }
+  }))
+  rownames(result) <- NULL
+  return(result)
+}
+
+mat <- as.matrix(sapply(Ctrl1_norm, as.numeric))
+find_local_maxima_table(mat)
+```
+
+https://chatgpt.com/share/683b2417-6030-8006-b6d2-479f6f34f641
 
 ------------------------------------------------------------------------
 

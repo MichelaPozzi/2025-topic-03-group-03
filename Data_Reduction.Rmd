@@ -1,0 +1,49 @@
+---
+title: "Data Reduction"
+output: html_document
+date: "2025-05-31"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+MS_Table_norm = read.table("MS_Table.norm.csv", header=TRUE, row.names=1, sep = ",")
+```
+
+# PCA
+
+```{r}
+# PCA mit ursprünglichen Werten
+# nur Carls Code
+
+pca = prcomp(MS_Table, center = FALSE, scale = FALSE)
+summary(pca)
+pca$sdev
+variance = (pca$sdev)^2
+prop.variance = variance/sum(variance)
+names(prop.variance) = 1:length(prop.variance)
+barplot(prop.variance[1:20],ylab='Proportion of variance') # we only plot the first 20 PCs
+
+plot(pca$x[,1], pca$x[,2], 
+     col= 'black', pch=19,
+     xlab='PC1',ylab='PC2')
+```
+
+```{r}
+# PCA mit normierten Werten
+# nur Carls Code
+
+pca = prcomp(MS_Table_norm, center = FALSE, scale = FALSE)
+summary(pca)
+pca$sdev
+variance = (pca$sdev)^2
+prop.variance = variance/sum(variance)
+names(prop.variance) = 1:length(prop.variance)
+barplot(prop.variance[1:20],ylab='Proportion of variance') # we only plot the first 20 PCs
+
+plot(pca$x[,1], pca$x[,2], 
+     col= 'black', pch=19,
+     xlab='PC1',ylab='PC2')
+```
