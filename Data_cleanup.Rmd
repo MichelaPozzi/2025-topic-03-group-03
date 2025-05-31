@@ -39,6 +39,8 @@ Treatmentnamen = c('Ctrl1_norm','Ctrl2_norm','Ctrl3_norm','RNAse1_norm','RNAse2_
 
 # Beschreibung der Daten
 
+# FHOD3_HUMAN hat keine Werte
+
 ### Dimensionen der Tabelle:
 
 ```{r}
@@ -61,6 +63,10 @@ rownames(MS_Table)
 
 ```{r}
 sum(is.na(MS_Table))
+
+sum(rowSums(MS_Table) == 0)
+which(rowSums(MS_Table) == 0) # wird entfernt
+
 ```
 
 ### Überprüfen ob die Werte alle 'numeric' sind
@@ -68,6 +74,12 @@ sum(is.na(MS_Table))
 ```{r}
 sum(sapply(MS_Table, is.numeric))
 # da kommt 150 raus > heißt alle spalten sind numerisch
+```
+
+### Entfernen von FHOD3_HUMAN
+
+```{r}
+MS_Table = MS_Table[-2089,]
 ```
 
 # Normierung
@@ -170,6 +182,7 @@ for (i in 1:6) {
 for (i in 1:6) {
   
   teilmatrix = (get(SW_Replikatsnamen[i])) * 100 / rowSums(get(SW_Replikatsnamen[i]))
+  teilmatrix[is.na(teilmatrix)] = 0 # falls es einzelen Fraktionen gibt die sum = 0 haben, und wird dadurch nicht teilen dürfen
   
   assign(SW_Replikatsnamen_norm[i], teilmatrix) # wählt gleich den passenden Namen dazu aus
 }
@@ -194,11 +207,14 @@ rownames(MS_Table_norm) = rownames(MS_Table)
 MS_Table_norm
 ```
 
+
+
+
 # Reproduzierbarkeit
 
 Erklärung welche Korrelation wird uns abgeschaut haben:
 
-Pearson oder Spearmean =\> ohne Ränge weil wir ganz viele Nullen haben !! heißt [Pearson]{.underline}
+Pearson oder Spearmean = ohne Ränge weil wir ganz viele Nullen haben !! heißt [Pearson]{.underline}
 
 Vorgehen:
 
@@ -291,7 +307,7 @@ for (i in 1:6) {
 ```
 
 ```{r}
-plot(1:25, Ctrl1_norm[1,], type = "l", col = "blue",
+plot(1:25, Ctrl1_norm[8,], type = "l", col = "blue",
      xlab = "Fraktion", ylab = "Intensität", main = "Proteinverteilung")
 
 ```
@@ -299,6 +315,8 @@ plot(1:25, Ctrl1_norm[1,], type = "l", col = "blue",
 
 ```{r}
 # Lokale Maxima bestimmen:
+
+# RÄNDER !!!!!!!!!
 find_local_maxima_table <- function(mat) {
   result <- do.call(rbind, lapply(1:nrow(mat), function(i) {
     x <- mat[i, ]
