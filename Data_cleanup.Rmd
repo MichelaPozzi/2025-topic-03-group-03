@@ -340,3 +340,7 @@ find_local_maxima_table(mat)
 ```
 
 
+```{r}
+write.csv(MS_Table_norm, file = "MS_Table.norm.csv")
+```
+
