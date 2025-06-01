@@ -47,7 +47,8 @@ plot(1:25, Ctrl1_norm[8,], type = "l", col = "blue",
 
 ```{r}
 # Lokale Maxima bestimmen:
-
+# erst subtabellen bilden mit mittelwerten der replikate
+# wir wollen lokale und absolute maxima zusammen bestimmen und als liste speichern
 # RÄNDER !!!!!!!!!
 find_local_maxima_table <- function(mat) {
   result <- do.call(rbind, lapply(1:nrow(mat), function(i) {
@@ -70,6 +71,11 @@ find_local_maxima_table <- function(mat) {
 mat <- as.matrix(sapply(Ctrl1_norm, as.numeric))
 find_local_maxima_table(mat)
 ```
+# Funktionen erstellen für verschiedene anzahl an peaks (gucken, wie viele es generell gibt) mit Parametern Mittelwert, Standardabweichung, Amplitude, die Fehlerberechnung beinhalten und somit für jedes Protein für die jeweilige Verteilung optimiert werden können
+# mit der optimierung für jedes Protein (noch bei den Mittelwerten der replikate) die passenden Parameter erhalten 
+# also optimierung für jeden der drei parameter und für jedes Treatment
+# optimierte parameter abspeichern als vektor
+# danach erst Gauß fit für jedes Replikat durchführen
 
 https://chatgpt.com/share/683b2417-6030-8006-b6d2-479f6f34f641
 
