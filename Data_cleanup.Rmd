@@ -39,8 +39,6 @@ Treatmentnamen = c('Ctrl1_norm','Ctrl2_norm','Ctrl3_norm','RNAse1_norm','RNAse2_
 
 # Beschreibung der Daten
 
-# FHOD3_HUMAN hat keine Werte
-
 ### Dimensionen der Tabelle:
 
 ```{r}
@@ -225,7 +223,7 @@ for (i in 1:50) {
   spalten_index = ((i-1) * 3 + 1):(i * 3) # pro loop 3 Spalten zusammen
   teilmatrix = MS_Table_norm[,spalten_index] # die Untertabellen für jede einzelne Fraktion
   
-  kor_a = cor(teilmatrix[,1], teilmatrix[,2], method = 'pearson', use = "complete.obs") # Pearsonkorrelation von Spalte 1 & 2
+  kor_a = cor(teilmatrix[,1], teilmatrix[,2], method = 'pearson') # Pearsonkorrelation von Spalte 1 & 2
   kor_Spalte1_Spalte2 = c(kor_Spalte1_Spalte2,kor_a) # an Vektor anhängen
 }
 
@@ -239,7 +237,7 @@ for (i in 1:50) {
   spalten_index = ((i-1) * 3 + 1):(i * 3) # pro loop 3 Spalten zusammen
   teilmatrix = MS_Table_norm[,spalten_index] # die Untertabellen für jede einzelne Fraktion
   
-  kor_b = cor(teilmatrix[,2], teilmatrix[,3], method = 'pearson', use = "complete.obs") # Pearsonkorrelation von Spalte 2 & 3
+  kor_b = cor(teilmatrix[,2], teilmatrix[,3], method = 'pearson') # Pearsonkorrelation von Spalte 2 & 3
   kor_Spalte2_Spalte3 = c(kor_Spalte2_Spalte3,kor_b) # an Vektor anhängen
 }
 
@@ -253,7 +251,7 @@ for (i in 1:50) {
   spalten_index = ((i-1) * 3 + 1):(i * 3) # pro loop 3 Spalten zusammen
   teilmatrix = MS_Table_norm[,spalten_index] # die Untertabellen für jede einzelne Fraktion
   
-  kor_c = cor(teilmatrix[,2], teilmatrix[,3], method = 'pearson', use = "complete.obs") # Pearsonkorrelation von Spalte 1 & 3
+  kor_c = cor(teilmatrix[,2], teilmatrix[,3], method = 'pearson') # Pearsonkorrelation von Spalte 1 & 3
   kor_Spalte1_Spalte3 = c(kor_Spalte1_Spalte3,kor_c) # an Vektor anhängen
 }
 
