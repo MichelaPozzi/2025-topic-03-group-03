@@ -63,7 +63,7 @@ rownames(MS_Table)
 sum(is.na(MS_Table))
 
 sum(rowSums(MS_Table) == 0)
-which(rowSums(MS_Table) == 0) # wird entfernt
+which(rowSums(MS_Table) == 0) # muss entfernt werden
 
 ```
 

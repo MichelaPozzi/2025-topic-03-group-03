@@ -40,20 +40,32 @@ for (i in 1:6) {
 ```
 
 ```{r}
-plot(1:25, Ctrl1_norm[8,], type = "l", col = "blue",
+plot(1:25, Ctrl1_norm[58,], type = "l", col = "blue",
+     xlab = "Fraktion", ylab = "Intensität", main = "Proteinverteilung")
+
+
+plot(1:25, RNAse1_norm[58,], type = "l", col = "blue",
      xlab = "Fraktion", ylab = "Intensität", main = "Proteinverteilung")
 
 ```
 
+
 ```{r}
-# Lokale Maxima bestimmen:
-# erst subtabellen bilden mit mittelwerten der replikate
-# wir wollen lokale und absolute maxima zusammen bestimmen und als liste speichern
-# RÄNDER !!!!!!!!!
-find_local_maxima_table <- function(mat) {
-  result <- do.call(rbind, lapply(1:nrow(mat), function(i) {
-    x <- mat[i, ]
-    idx <- which(diff(sign(diff(x))) == -2) + 1
+find_maxima = function(mat) {
+  result = do.call(rbind, lapply(1:nrow(mat), function(i) {
+    x = mat[i, ]
+    # Unterschiedliche Stellen
+    idx = which(diff(sign(diff(x))) == -2) + 1 # Maxima
+    
+    # Maxima als Plateu
+    
+    
+    # Randmaxima
+    if (x[1] > x[2]) {idx = c(1, idx)} #Randmaxima bei 1
+    if (x[25] > x[24]) {idx = c(idx, 25)} # Randmaxima bei 25
+
+    
+    # orte von gefundene Maxima werden der Tabelle angehangen
     if (length(idx) > 0) {
       data.frame(
         Zeile = i,
@@ -62,20 +74,206 @@ find_local_maxima_table <- function(mat) {
       )
     } else {
       NULL
+    } 
+  }))
+  rownames(result) = NULL # damit die Namen nicht überschreiben werden
+  return(result)
+  
+}
+
+mat = as.matrix(sapply(Ctrl1_norm, as.numeric))
+Maxima_Ctrl_1 = find_maxima(mat)
+
+```
+
+## Maxima Bestimmung
+Berücksichtigt: Plateus, Randmaxima, Threshold
+
+```{r}
+# Funktion zum Finden der Maxima
+find_maxima = function(mat, threshold = 2) {
+  result = do.call(rbind, lapply(1:nrow(mat), function(i) {
+    x = mat[i, ]
+    
+    # Normale Maxima (sign-change von + zu - => ergibt -2)
+    idx = which(diff(sign(diff(x))) == -2) + 1 
+    
+    # Plateau-Maxima erkennen
+    # Suche Bereiche, in denen Werte gleich sind und gleich oder größer als Nachbarn sind
+    
+    rle_x = rle(x)  # Run-Length-Encoding der Werte
+    lengths = rle_x$lengths
+    values = rle_x$values
+    ends = cumsum(lengths)
+    starts = ends - lengths + 1
+    
+    plateau_idx = c()
+    for (j in seq_along(values)) {
+      # Nur Plateaus mit Länge > 1 prüfen
+      if (lengths[j] > 1) {
+        start_pos = starts[j]
+        end_pos = ends[j]
+        
+        # Werte links und rechts des Plateaus
+        left_val = if (start_pos > 1) x[start_pos - 1] else -Inf
+        right_val = if (end_pos < length(x)) x[end_pos + 1] else -Inf
+        
+        # Plateau ist lokales Maximum, wenn Wert >= Nachbarn
+        if (values[j] >= left_val && values[j] >= right_val) {
+          # Plateau-Maximum: Indize des Plateausstartpunkts
+          plateau_idx = c(plateau_idx, start_pos)
+        }
+      }
+    }
+    
+    # Kombination von normalen Maxima und Plateau-Maxima
+    all_idx = sort(unique(c(idx, plateau_idx)))
+    
+    # Randmaxima (erste und letzte Position prüfen)
+    if (x[1] > x[2]) {all_idx = c(1, all_idx)} #Randmaxima bei 1
+    if (x[25] > x[24]) {all_idx = c(all_idx, 25)} # Randmaxima bei 25
+    
+    # nur Werte > threshold = 2% behalten
+    all_idx = all_idx[x[all_idx] > threshold]
+    
+    # Ergebnis zusammenbauen
+    if (length(all_idx) > 0) {
+      data.frame(
+        Zeile = i,
+        Fraktion = all_idx,
+        Wert = x[all_idx]
+      )
+    } else {
+      NULL
     }
   }))
-  rownames(result) <- NULL
+  
+  rownames(result) = NULL
   return(result)
 }
 
-mat <- as.matrix(sapply(Ctrl1_norm, as.numeric))
-find_local_maxima_table(mat)
+Ctrl1_norm_mat = as.matrix(sapply(Ctrl1_norm, as.numeric))
+Maxima_Ctrl_1 = find_maxima(Ctrl1_norm_mat)
+
+RNAse1_norm_mat = as.matrix(sapply(RNAse1_norm, as.numeric))
+Maxima_RNAse_1 = find_maxima(RNAse1_norm_mat)
+
 ```
-# Funktionen erstellen für verschiedene anzahl an peaks (gucken, wie viele es generell gibt) mit Parametern Mittelwert, Standardabweichung, Amplitude, die Fehlerberechnung beinhalten und somit für jedes Protein für die jeweilige Verteilung optimiert werden können
-# mit der optimierung für jedes Protein (noch bei den Mittelwerten der replikate) die passenden Parameter erhalten 
-# also optimierung für jeden der drei parameter und für jedes Treatment
-# optimierte parameter abspeichern als vektor
-# danach erst Gauß fit für jedes Replikat durchführen
+
+```{r}
+# Anwenden auf Tabellen 
+# ?? Frage nur welche > Mittelwerte von RNAse & Controlle oder für alle 6 Substabellen; Maiwen hat für Mittel
+mat = as.matrix(sapply(Ctrl1_norm, as.numeric))
+Maxima_Ctrl_1 = find_maxima(mat)
+
+```
+
+
+
+## Schulterpunkte
+
+```{r}
+find_extrema = function(mat, threshold = 2, slope_threshold = NULL) {
+  result = do.call(rbind, lapply(1:nrow(mat), function(i) {
+    x = mat[i, ]
+    
+    # Normale Maxima (Knick in 1. Ableitung)
+    idx = which(diff(sign(diff(x))) == -2) + 1 
+    
+    # Plateau-Maxima
+    rle_x = rle(x)
+    lengths = rle_x$lengths
+    values = rle_x$values
+    ends = cumsum(lengths)
+    starts = ends - lengths + 1
+    
+    plateau_idx = c()
+    for (j in seq_along(values)) {
+      if (lengths[j] > 1) {
+        start_pos = starts[j]
+        end_pos = ends[j]
+        
+        left_val = if (start_pos > 1) x[start_pos - 1] else -Inf
+        right_val = if (end_pos < length(x)) x[end_pos + 1] else -Inf
+        
+        if (values[j] >= left_val && values[j] >= right_val) {
+          plateau_idx = c(plateau_idx, start_pos:end_pos)
+        }
+      }
+    }
+    
+    # Randmaxima prüfen
+    max_idx = sort(unique(c(idx, plateau_idx)))
+    if (x[1] > x[2]) {max_idx = c(1, max_idx)}
+    if (x[length(x)] > x[length(x) - 1]) {max_idx = c(max_idx, length(x))}
+    
+    # Threshold filtern
+    max_idx = max_idx[x[max_idx] > threshold]
+    
+    # Schulterpunkte erkennen
+    dx = diff(x)
+    shoulder_idx = c()
+    for (j in 2:(length(dx)-1)) {
+      # Steil ansteigend -> flach oder fallend
+      if (!is.null(slope_threshold)) {
+        if (dx[j-1] > slope_threshold && dx[j] < (0.5 * dx[j-1])) {
+          shoulder_idx = c(shoulder_idx, j + 1)
+        }
+      } else {
+        # Default ohne Schwellwert
+        if (dx[j-1] > 1 && dx[j] < 0.5 * dx[j-1]) {
+          shoulder_idx = c(shoulder_idx, j + 1)
+        }
+      }
+    }
+    
+    # Maxima
+    res_max = if (length(max_idx) > 0) {
+      data.frame(
+        Zeile = i,
+        Position = max_idx,
+        Wert = x[max_idx],
+        Typ = "Maximum"
+      )
+    } else { NULL }
+    
+    # Schulterpunkte
+    res_shoulder = if (length(shoulder_idx) > 0) {
+      data.frame(
+        Zeile = i,
+        Position = shoulder_idx,
+        Wert = x[shoulder_idx],
+        Typ = "Schulter"
+      )
+    } else { NULL }
+    
+    rbind(res_max, res_shoulder)
+  }))
+  
+  rownames(result) = NULL
+  return(result)
+}
+mat = as.matrix(sapply(Ctrl1_norm, as.numeric))
+Maxima_Schulter_Ctrl_1 = find_extrema(mat)
+
+```
+
+
+# Vergleich von RNAse & Kontrolle
+```{r}
+
+```
+
+
+
+
+
+## Jettes Plan
+- Funktionen erstellen für verschiedene anzahl an peaks (gucken, wie viele es generell gibt) mit Parametern Mittelwert, Standardabweichung, Amplitude, die Fehlerberechnung beinhalten und somit für jedes Protein für die jeweilige Verteilung optimiert werden können
+- mit der optimierung für jedes Protein (noch bei den Mittelwerten der replikate) die passenden Parameter erhalten
+- also optimierung für jeden der drei parameter und für jedes Treatment
+- optimierte parameter abspeichern als vektor
+- danach erst Gauß fit für jedes Replikat durchführen
 
 https://chatgpt.com/share/683b2417-6030-8006-b6d2-479f6f34f641
 
