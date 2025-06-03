@@ -47,3 +47,67 @@ plot(pca$x[,1], pca$x[,2],
      col= 'black', pch=19,
      xlab='PC1',ylab='PC2')
 ```
+## Installieren der genannten libraries im Code 
+```{r install_all_needed, eval=FALSE}
+install.packages(c("factoextra", "cluster", "pheatmap", "RColorBrewer"))
+# Für Elbow- und Silhouette-Methode => library(factoextra)
+# Für Silhouette-Plot => library(cluster)
+# Für Heatmaps => library(pheatmap)
+# Für schöne Farben in Plots => library(RColorBrewer)   
+```
+
+## K-Means Clustering auf die obigen PCA-Ergebnissen angewandt 
+
+```{r kmeans_pca_clustering, message=FALSE, warning=FALSE}
+
+# PCA auf normierter Tabelle
+pca = prcomp(t(MS_Table_norm), center = TRUE, scale. = TRUE)
+
+# Varianz-Anteile anzeigen (optional)
+prop.variance = (pca$sdev)^2 / sum(pca$sdev^2)
+barplot(prop.variance[1:10], main = "Varianzanteile (Top 10 PCs)", ylab = "Proportion")
+
+# Auswahl der ersten 5 Hauptkomponenten für Clustering
+pca_data = pca$x[, 1:5]
+
+# Benötigte Pakete laden
+library(factoextra)
+library(cluster)
+library(RColorBrewer)
+col = brewer.pal(9, 'Set1')
+
+# Elbow-Methode
+fviz_nbclust(pca_data, kmeans, method = "wss") +
+  ggtitle("Elbow-Methode – optimale Clusteranzahl")
+
+# Silhouette-Methode
+fviz_nbclust(pca_data, kmeans, method = "silhouette") +
+  ggtitle("Silhouette-Methode – optimale Clusteranzahl")
+
+# Setze Seed für Reproduzierbarkeit
+set.seed(123)
+
+# K-Means Clustering mit k = 3 ==> eventuell muss noch angepasst werden
+km = kmeans(pca_data, centers = 3, nstart = 25)
+
+# Cluster-Zuordnung speichern
+cluster_assignment = km$cluster
+
+# Plot der ersten zwei PCs mit Clusterfarben
+plot(pca$x[,1], pca$x[,2],
+     col = col[cluster_assignment],
+     pch = 19,
+     xlab = "PC1", ylab = "PC2",
+     main = "K-Means Clustering auf PCA (k=3)")
+
+# Erstellen eines Silhouette Plots zur Bewertung der Clusterqualität
+dist_matrix = dist(pca_data)
+sil = silhouette(cluster_assignment, dist_matrix)
+plot(sil, col = col[1:max(cluster_assignment)],
+     main = "Silhouette Plot für k = 3")
+
+# Export der Cluster-Zuordnung als CSV Datei => später noch notwendig zum Beispiel zur Visualisierung 
+cluster_df = data.frame(Sample = colnames(MS_Table_norm),
+                        Cluster = cluster_assignment)
+write.csv(cluster_df, "Cluster_Zuordnung.csv", row.names = FALSE)
+```
