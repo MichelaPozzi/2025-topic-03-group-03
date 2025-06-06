@@ -275,6 +275,7 @@ plot(Crtl.1.1, Crtl.1.2,
      ylab = 'Crtl.1.2',)
 ```
 
+
 Skript damit die Tabelle als csv. gespeichert wird > direkt da auf Github > und. in nächstem Dokument dann runterladen
 ```{r}
 # write.csv(MS_Table_norm, file = "MS_Table.norm.csv")

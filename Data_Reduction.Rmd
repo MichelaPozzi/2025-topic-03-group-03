@@ -61,7 +61,7 @@ install.packages(c("factoextra", "cluster", "pheatmap", "RColorBrewer"))
 ```{r kmeans_pca_clustering, message=FALSE, warning=FALSE}
 
 # PCA auf normierter Tabelle
-pca = prcomp(t(MS_Table_norm), center = TRUE, scale. = TRUE)
+pca = prcomp(MS_Table_norm, center = TRUE, scale. = TRUE)
 
 # Varianz-Anteile anzeigen (optional)
 prop.variance = (pca$sdev)^2 / sum(pca$sdev^2)
@@ -88,7 +88,7 @@ fviz_nbclust(pca_data, kmeans, method = "silhouette") +
 set.seed(123)
 
 # K-Means Clustering mit k = 3 ==> eventuell muss noch angepasst werden
-km = kmeans(pca_data, centers = 3, nstart = 25)
+km = kmeans(pca_data, centers = 6, nstart = 25)
 
 # Cluster-Zuordnung speichern
 cluster_assignment = km$cluster
