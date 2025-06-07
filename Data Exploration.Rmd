@@ -273,8 +273,83 @@ Combined_RNAse = Combined_RNAse[order(Combined_RNAse$Zeile, Combined_RNAse$Frakt
 
 # Vergleich von RNAse & Kontrolle
 ```{r}
+# Bestimmung der p-Werte für die verschiedenen Maxima
+
+# funktioniert noch nicht
+# Liste deiner Replikat-Tabellen
+ctrl_reps = list(Ctrl1_norm, Ctrl2_norm, Ctrl3_norm)
+rnase_reps = list(RNAse1_norm, RNAse3_norm, RNAse3_norm)
+
+# Maxima aus beiden Treatments zusammenführen
+peaks_ctrl = data.frame(Protein = Combined_Kontrolle$Protein, Fraktion = Combined_Kontrolle$Fraktion, Maximum = Combined_Kontrolle$Wert)
+peaks_rnase = data.frame(Protein = Combined_RNAse$Protein, Fraktion = Combined_RNAse$Fraktion, Maximum = Combined_RNAse$Wert)
+
+# Kombinierte Peaks
+combined_peaks = unique(rbind(peaks_ctrl, peaks_rnase))
+
+# Ergebnis-Tabelle 
+results = data.frame()
+
+for (i in 1:nrow(combined_peaks)) {
+  protein = combined_peaks$Protein[i]
+  fraktion = as.character(combined_peaks$Fraktion[i])
+
+  # Hole Werte aus allen 3 Kontroll-Replikaten  # ab hier Fehler 
+  ctrl_vals = sapply(ctrl_reps, function(df) {
+    if (protein %in% rownames(df) && fraktion %in% colnames(df)) {
+      return(df[protein, fraktion])
+    } else {
+      return(NA)
+    }
+  })
+
+  # Hole Werte aus allen 3 RNase-Replikaten
+  rnase_vals = sapply(rnase_reps, function(df) {
+    if (protein %in% rownames(df) && fraktion %in% colnames(df)) {
+      return(df[protein, fraktion])
+    } else {
+      return(NA)
+    }
+  })
+
+  # Entferne NA-Werte
+  ctrl_vals = na.omit(ctrl_vals)
+  rnase_vals = na.omit(rnase_vals)
+
+  # Wenn nötig: Mini-Störung hinzufügen bei identischen Werten
+  if (length(ctrl_vals) >= 2 && all(abs(ctrl_vals - ctrl_vals[1]) < 1e-10)) {
+    ctrl_vals[2] <- ctrl_vals[2] + 1e-6
+  }
+  if (length(rnase_vals) >= 2 && all(abs(rnase_vals - rnase_vals[1]) < 1e-10)) {
+    rnase_vals[2] <- rnase_vals[2] + 1e-6
+  }
+
+  # t-Test nur wenn beide Gruppen mindestens 2 Werte haben
+  
+
+  if (length(ctrl_vals) >= 2 && length(rnase_vals) >= 2) {
+    ftest_p <- tryCatch(var.test(ctrl_vals, rnase_vals)$p.value, error = function(e) NA)
+    t_p <- tryCatch(
+      t.test(ctrl_vals, rnase_vals, var.equal = (ftest_p > 0.05))$p.value,
+      error = function(e) NA
+    )
+  } else {
+    t_p <- NA
+  }
+
+  # Ergebnis speichern
+  results = rbind(results, data.frame(
+    Protein = protein,
+    Fraktion = as.integer(fraktion),
+    p_value = t_p
+  ))
+}
+
+# FDR-Korrektur
+results$adj_p = p.adjust(results$p_value, method = "BH")
 
 ```
+
 
 
 ```{r}
