@@ -19,6 +19,12 @@ MS_Table_norm = read.table("MS_Table.norm.csv", header=TRUE, row.names=1, sep = 
 Fraktionsnamen = c('Fraction1_Ctrl', 'Fraction1_RNAse', 'Fraction2_Ctrl', 'Fraction2_RNAse','Fraction3_Ctrl', 'Fraction3_RNAse','Fraction4_Ctrl', 'Fraction4_RNAse','Fraction5_Ctrl', 'Fraction5_RNAse','Fraction6_Ctrl', 'Fraction6_RNAse','Fraction7_Ctrl', 'Fraction7_RNAse','Fraction8_Ctrl', 'Fraction8_RNAse','Fraction9_Ctrl', 'Fraction9_RNAse','Fraction10_Ctrl', 'Fraction10_RNAse','Fraction11_Ctrl', 'Fraction11_RNAse','Fraction12_Ctrl', 'Fraction12_RNAse','Fraction13_Ctrl', 'Fraction13_RNAse','Fraction14_Ctrl', 'Fraction14_RNAse','Fraction15_Ctrl', 'Fraction15_RNAse','Fraction16_Ctrl', 'Fraction16_RNAse','Fraction17_Ctrl', 'Fraction17_RNAse','Fraction18_Ctrl', 'Fraction18_RNAse','Fraction19_Ctrl', 'Fraction19_RNAse','Fraction20_Ctrl', 'Fraction20_RNAse','Fraction21_Ctrl', 'Fraction21_RNAse','Fraction22_Ctrl', 'Fraction22_RNAse','Fraction23_Ctrl', 'Fraction23_RNAse','Fraction24_Ctrl', 'Fraction24_RNAse','Fraction25_Ctrl', 'Fraction25_RNAse')
 ```
 
+```{r}
+Proteinnamen = rownames(MS_Table)
+```
+
+
+
 ```{r} 
 # Subtabellen für jedes Replikat
 for (i in 1:6) {
@@ -144,13 +150,125 @@ Maxima_Mittelwerte_RNAse = find_maxima(Mittelwerte_RNAse_mat)
 ## Schulterpunkte
 
 ```{r}
-# vorübergehendes Entfernen von Bereichen um Maxima in Tabelle  
+# Funktion zum Finden der Schulterpunkte
+find_shoulders = function(binary_mat, Proteinnamen) {
+  result = do.call(rbind, lapply(1:nrow(binary_mat), function(i) {
+    x = binary_mat[i, ]
+    rle_x = rle(x)
+    lengths = rle_x$lengths
+    values = rle_x$values
+    ends = cumsum(lengths)
+    starts = ends - lengths + 1
+    
+    schulter_idx = c()
+    for (j in seq_along(values)) {
+      if (values[j] == 1 && lengths[j] >= 4) {
+        start_pos = starts[j]
+        end_pos = ends[j]
+        schulter_idx = c(schulter_idx, mean(start_pos:end_pos))
+      }
+    }
+    
+    if (length(schulter_idx) > 0) {
+      data.frame(
+        Protein = Proteinnamen[i],
+        Zeile = i,
+        Fraktion = schulter_idx
+      )
+    } else {
+      NULL
+    }
+  }))
+  
+  rownames(result) = NULL
+  return(result)
+}
+```
 
-Tabelle_für_Schulter = MS_Table_norm[]
 
+### Schulterpunkte für Kontrolle
+```{r} 
+#vorübergehenes Entfernen von Proteinmenge die unter Threshold liegt
+Schulter_Mittelwerte_Kontrolle = ifelse(Mittelwerte_Kontrolle > 2, 1, 0) # wenn größer als 2 dann wird es zu 1 sonst wird der Wert auf 0 gesetzt
 
+# vorübergehendes Entfernen von Bereichen um Maxima > werden auf 0 gesetzt: im Umkreis um 3 
+# Schleife über alle Maxima
+for (i in 1:nrow(Maxima_Mittelwerte_Kontrolle)) {
+  Protein = Maxima_Mittelwerte_Kontrolle$Zeile[i]      # Zeile (Protein)
+  Fraktion = Maxima_Mittelwerte_Kontrolle$Fraktion[i]  # Spalte (Fraktion)
+  
+  # Bereichsgrenzen für die Spalten berechnen (Grenzen prüfen!)
+  Fraktions_bereich = max(1, Fraktion - 3):min(ncol(Schulter_Mittelwerte_Kontrolle), Fraktion + 3)
+  
+  # Nur in dieser Zeile (Protein) die ±3 Spalten auf 0 setzen
+  Schulter_Mittelwerte_Kontrolle[Protein, Fraktions_bereich] = 0
+}
+
+Schulterpunkte_Kontrolle = find_shoulders(Schulter_Mittelwerte_Kontrolle, Proteinnamen)
 
 ```
+
+### Schulterpunkte für RNAse
+
+```{r}
+#vorübergehenes Entfernen von Proteinmenge die unter Threshold liegt
+Schulter_Mittelwerte_RNAse = ifelse(Mittelwerte_RNAse > 2, 1, 0) # wenn größer als 2 dann wird es zu 1 sonst wird der Wert auf 0 gesetzt
+
+# vorübergehendes Entfernen von Bereichen um Maxima > werden auf 0 gesetzt: im Umkreis um 3 
+# Schleife über alle Maxima
+for (i in 1:nrow(Maxima_Mittelwerte_RNAse)) {
+  Protein = Maxima_Mittelwerte_RNAse$Zeile[i]      # Zeile (Protein)
+  Fraktion = Maxima_Mittelwerte_RNAse$Fraktion[i]  # Spalte (Fraktion)
+  
+  # Bereichsgrenzen für die Spalten berechnen (Grenzen prüfen!)
+  Fraktions_bereich = max(1, Fraktion - 3):min(ncol(Schulter_Mittelwerte_RNAse), Fraktion + 3)
+  
+  # Nur in dieser Zeile (Protein) die ±3 Spalten auf 0 setzen
+  Schulter_Mittelwerte_RNAse[Protein, Fraktions_bereich] = 0
+}
+
+
+Schulterpunkte_RNAse = find_shoulders(Schulter_Mittelwerte_RNAse, Proteinnamen)
+```
+
+# es gibt nicht viele Schulterpunkte bei 2,5 die frage ist nur ob wir die entfernen müssen
+
+## Zusammenführen der Werte
+Ich würde das nochmal bisschen verändern aber so funktioniert es auf jeden Fall und wir haben Tabellen in denen jetzt alle Maxima & Schulerpunkte haben zum Weiterarbeiten
+
+```{r}
+# Für Schulterpunkte Wert hinzufügen
+Schulterpunkte_Kontrolle$Fraktion_gerundet = round(Schulterpunkte_Kontrolle$Fraktion)
+Schulterpunkte_Kontrolle$Wert = mapply(function(zeile, fraktion) {
+  Mittelwerte_Kontrolle[zeile, fraktion]
+}, Schulterpunkte_Kontrolle$Zeile, Schulterpunkte_Kontrolle$Fraktion_gerundet)
+
+Schulterpunkte_RNAse$Fraktion_gerundet = round(Schulterpunkte_RNAse$Fraktion)
+Schulterpunkte_RNAse$Wert = mapply(function(zeile, fraktion) {
+  Mittelwerte_RNAse[zeile, fraktion]
+}, Schulterpunkte_RNAse$Zeile, Schulterpunkte_RNAse$Fraktion_gerundet)
+
+# Markieren und zusammenfügen Kontrolle
+Maxima_Mittelwerte_Kontrolle$Typ = "Maxima"
+Schulterpunkte_Kontrolle$Typ = "Schulter"
+
+Combined_Kontrolle = rbind(
+  Maxima_Mittelwerte_Kontrolle[, c("Protein", "Zeile", "Fraktion", "Wert", "Typ")],
+  Schulterpunkte_Kontrolle[, c("Protein", "Zeile", "Fraktion", "Wert", "Typ")]
+)
+Combined_Kontrolle = Combined_Kontrolle[order(Combined_Kontrolle$Zeile, Combined_Kontrolle$Fraktion), ]
+
+# Markieren und zusammenfügen RNAse
+Maxima_Mittelwerte_RNAse$Typ = "Maxima"
+Schulterpunkte_RNAse$Typ = "Schulter"
+
+Combined_RNAse = rbind(
+  Maxima_Mittelwerte_RNAse[, c("Protein", "Zeile", "Fraktion", "Wert", "Typ")],
+  Schulterpunkte_RNAse[, c("Protein", "Zeile", "Fraktion", "Wert", "Typ")]
+)
+Combined_RNAse = Combined_RNAse[order(Combined_RNAse$Zeile, Combined_RNAse$Fraktion), ]
+```
+
 
 
 # Vergleich von RNAse & Kontrolle
@@ -160,12 +278,12 @@ Tabelle_für_Schulter = MS_Table_norm[]
 
 
 ```{r}
-plot(1:25, Ctrl1_norm[2,], type = "l", col = "blue",
+plot(1:25, Mittelwerte_Kontrolle[64,], type = "l", col = "blue",
      xlab = "Fraktion", ylab = "Intensität", main = "Proteinverteilung")
 
 
-plot(1:25, RNAse1_norm[58,], type = "l", col = "blue",
-     xlab = "Fraktion", ylab = "Intensität", main = "Proteinverteilung")
+# plot(1:25, RNAse1_norm[58,], type = "l", col = "blue",
+    # xlab = "Fraktion", ylab = "Intensität", main = "Proteinverteilung")
 
 ```
 
