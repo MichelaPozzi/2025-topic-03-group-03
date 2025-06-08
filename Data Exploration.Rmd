@@ -446,28 +446,42 @@ Combined_RNAse = Combined_RNAse[order(Combined_RNAse$Zeile, Combined_RNAse$Frakt
 
 # Vergleich von RNAse & Kontrolle
 ```{r}
-# Bestimmung der p-Werte für die verschiedenen Maxima
+# P-Werte bestimmen für die verschiedenen Maxima
+# Spaltennamen dedr Subtabellen nue benennen, um darauf zugreifen zu können über Combined_Kontrolle und Combined_RNAse
+Ctrl1_frakt = Ctrl1_norm
+colnames(Ctrl1_frakt) = c(1:25)
+Ctrl2_frakt = Ctrl2_norm
+colnames(Ctrl2_frakt) = c(1:25)
+Ctrl3_frakt = Ctrl3_norm
+colnames(Ctrl3_frakt) = c(1:25)
 
-# funktioniert noch nicht
-# Liste deiner Replikat-Tabellen
-ctrl_reps = list(Ctrl1_norm, Ctrl2_norm, Ctrl3_norm)
-rnase_reps = list(RNAse1_norm, RNAse3_norm, RNAse3_norm)
+RNAse1_frakt = RNAse1_norm
+colnames (RNAse1_frakt) = c(1:25)
+RNAse2_frakt = RNAse2_norm
+colnames(RNAse2_frakt) = c(1:25)
+RNAse3_frakt = RNAse3_norm
+colnames(RNAse3_frakt) = c(1:25)
 
-# Maxima aus beiden Treatments zusammenführen
-peaks_ctrl = data.frame(Protein = Combined_Kontrolle$Protein, Fraktion = Combined_Kontrolle$Fraktion, Maximum = Combined_Kontrolle$Wert)
-peaks_rnase = data.frame(Protein = Combined_RNAse$Protein, Fraktion = Combined_RNAse$Fraktion, Maximum = Combined_RNAse$Wert)
+# Listen bilden aus den Replikaten von Kontrolle und RNAse
+ctrl_reps = list(Ctrl1_frakt, Ctrl2_frakt, Ctrl3_frakt)
+rnase_reps = list(RNAse1_frakt, RNAse2_frakt, RNAse3_frakt)
 
-# Kombinierte Peaks
-combined_peaks = unique(rbind(peaks_ctrl, peaks_rnase))
+# Datframe von Kontrolle und RNAse mit nur den Positionen der Peaks
+peaks_ctrl = data.frame(Protein = Combined_Kontrolle$Protein, Fraktion = Combined_Kontrolle$Fraktion, Treatment = 'Kontrolle')
+peaks_rnase = data.frame(Protein = Combined_RNAse$Protein, Fraktion = Combined_RNAse$Fraktion, Treatment = 'RNase')
 
-# Ergebnis-Tabelle 
-results = data.frame()
 
-for (i in 1:nrow(combined_peaks)) {
-  protein = combined_peaks$Protein[i]
-  fraktion = as.character(combined_peaks$Fraktion[i])
+# Gemeinsame Protein-Fraktion-Kombinationen von Kontrolle und RNAse bestimmen
+shared_peaks = merge(peaks_ctrl, peaks_rnase, by = c("Protein", "Fraktion"))
 
-  # Hole Werte aus allen 3 Kontroll-Replikaten  # ab hier Fehler 
+# Dataframe für die Ergebnisse aufstellen
+p_Werte = data.frame()
+
+for (i in 1:nrow(shared_peaks)) {
+  protein  = shared_peaks$Protein[i]
+  fraktion = as.character(shared_peaks$Fraktion[i])
+  
+  # Kontrollwerte extrahieren: über Position in shared peaks
   ctrl_vals = sapply(ctrl_reps, function(df) {
     if (protein %in% rownames(df) && fraktion %in% colnames(df)) {
       return(df[protein, fraktion])
@@ -476,7 +490,7 @@ for (i in 1:nrow(combined_peaks)) {
     }
   })
 
-  # Hole Werte aus allen 3 RNase-Replikaten
+  # RNase-Werte extrahieren: über Position in shared peaks
   rnase_vals = sapply(rnase_reps, function(df) {
     if (protein %in% rownames(df) && fraktion %in% colnames(df)) {
       return(df[protein, fraktion])
@@ -484,8 +498,7 @@ for (i in 1:nrow(combined_peaks)) {
       return(NA)
     }
   })
-
-  # Entferne NA-Werte
+   # NA Werte entfernen
   ctrl_vals = na.omit(ctrl_vals)
   rnase_vals = na.omit(rnase_vals)
 
@@ -498,28 +511,21 @@ for (i in 1:nrow(combined_peaks)) {
   }
 
   # t-Test nur wenn beide Gruppen mindestens 2 Werte haben
-  
+  # Varianztest mit F-Test, um zu gucken, ob Kontrolle und RNAse gleiche Varianz haben: wichtig für t-Test Durchführung
 
   if (length(ctrl_vals) >= 2 && length(rnase_vals) >= 2) {
-    ftest_p <- tryCatch(var.test(ctrl_vals, rnase_vals)$p.value, error = function(e) NA)
-    t_p <- tryCatch(
-      t.test(ctrl_vals, rnase_vals, var.equal = (ftest_p > 0.05))$p.value,
+    ftest_p = tryCatch(var.test(ctrl_vals, rnase_vals)$p.value, error = function(e) NA) # nur auf den p.value zugreifen im F-Test
+    t_p = tryCatch(
+      t.test(ctrl_vals, rnase_vals, var.equal = (ftest_p > 0.05))$p.value, # mögliche Fehler mit tryCatch abfangen
       error = function(e) NA
     )
-  } else {
-    t_p <- NA
-  }
-
-  # Ergebnis speichern
-  results = rbind(results, data.frame(
-    Protein = protein,
-    Fraktion = as.integer(fraktion),
-    p_value = t_p
-  ))
+  } 
+  p_Werte = rbind(p_Werte, data.frame(Protein = protein, Fraktion = fraktion, P_Value = t_p))
 }
 
+
 # FDR-Korrektur
-results$adj_p = p.adjust(results$p_value, method = "BH")
+p_Werte$adj_p = p.adjust(p_Werte$P_Value, method = "BH")
 
 ```
 
