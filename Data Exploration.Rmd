@@ -529,6 +529,66 @@ p_Werte$adj_p = p.adjust(p_Werte$P_Value, method = "BH")
 
 ```
 
+```{r}
+# Funktion mit allen relevanten paramtern erstellen, die für jedes Protein bestimmt werden
+#maxima werte (amplitude) -> threshold für relevantes maximum festlegen
+#differenz der amplituden -> gain (rnase) oder loss (Kontrolle)?
+#proteinmenge (area under the curve) -
+#unterschied in position der maxima - Abstand
+#p werte dazu schreiben
+liste_maxima_Ctrl = split(Combined_Kontrolle[, c("Fraktion", "Wert")], Combined_Kontrolle$Protein)
+liste_maxima_RNAse = split(Combined_RNAse[, c("Fraktion", "Wert")], Combined_RNAse$Protein)
+
+
+hol_shifts = function(Protein) { 
+  shift = numeric(0)
+  
+  # maxima holen
+  ctrl_maxima = liste_maxima_Ctrl[[Protein]]
+  rnase_maxima = liste_maxima_RNAse[[Protein]]
+  
+  if (is.null(ctrl_maxima)) ctrl_maxima = data.frame(Fraktion = numeric(0), Wert = numeric(0))
+  if (is.null(rnase_maxima)) rnase_maxima = data.frame(Fraktion = numeric(0), Wert = numeric(0))
+  
+  nb_ctrl_maxima = nrow(ctrl_maxima)
+  nb_rnase_maxima = nrow(rnase_maxima)
+  
+  #Abstände aller Maxima zueinander zwischen Kontrolle und RNAse berechnen
+  abstände = c()
+  for (i in 1: nrow(liste_maxima_RNAse)) {
+    abstände = c(abstände,liste_maxima_RNAse$Fraktion[i]-liste_maxima_Ctrl$Fraktion)
+  }
+  abstände = unlist(abstände)
+  
+  # Differenz der Amplituden
+   if (is.null(ctrl_maxima)) ctrl_maxima = data.frame(Fraktion = numeric(0), Wert = numeric(0))
+   if (is.null(rnase_maxima)) rnase_maxima = data.frame(Fraktion = numeric(0), Wert = numeric(0))
+
+  # Loss: Kontroll-Maxima -> RNase
+  loss_list = c()
+  for (i in 1:nrow(ctrl_maxima)) {
+    fraktion_i = ctrl_maxima$Fraktion[i]
+    amp_ctrl = ctrl_maxima$Wert[i]
+
+    amp_rnase = Combined_RNAse$Wert[Combined_RNAse$Protein == Protein & Combined_RNAse$Fraktion == fraktion_i]
+    if (length(amp_rnase) == 0) amp_rnase = 0
+
+    loss_list = c(loss_list, amp_ctrl - amp_rnase)
+  } 
+  # Gain: RNAse-Maxima -> Kontrolle
+  gain_list = c()
+  for (i in 1:nrow(rnase_maxima)) {
+    fraktion_i = rnase_maxima$Fraktion[i]
+    amp_rnase = rnase_maxima$Wert[i]
+
+    amp_ctrl = Combined_Kontrolle$Wert[Combined_Kontrolle$Protein == Protein & Combined_Kontrolle$Fraktion == fraktion_i]
+    if (length(amp_ctrl) == 0) amp_ctrl = 0
+
+    gain_list = c(gain_list, amp_rnase - amp_ctrl)
+  }
+  # Proteinmenge berechnen
+}
+```
 
 
 ```{r}
