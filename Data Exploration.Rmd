@@ -8,7 +8,6 @@ date: "2025-05-31"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-
 ```{r}
 MS_Table_norm = read.table("MS_Table.norm.csv", header=TRUE, row.names=1, sep = ",")
 ```
@@ -23,9 +22,7 @@ Fraktionsnamen = c('Fraction1_Ctrl', 'Fraction1_RNAse', 'Fraction2_Ctrl', 'Fract
 Proteinnamen = rownames(MS_Table)
 ```
 
-
-
-```{r} 
+```{r}
 # Subtabellen für jedes Replikat
 for (i in 1:6) {
 
@@ -55,8 +52,8 @@ colnames(Mittelwerte_RNAse) <- paste0(Fraktionsnamen[seq(1, 50, by=2)])
   
 ```
 
-
 ## Maxima Bestimmung
+
 Berücksichtigt: Plateaus, gespaltene Peaks, Randmaxima, Threshold
 
 ```{r}
@@ -88,7 +85,7 @@ find_maxima = function(mat, threshold = 2) {
         # Plateau ist lokales Maximum, wenn Wert >= Nachbarn
         if (values[j] >= left_val && values[j] >= right_val) {
           # Plateau-Maximum: Indize des Plateausstartpunkts
-          plateau_idx = c(plateau_idx, mean(start_pos:end_pos))
+          plateau_idx = c(plateau_idx, round(mean(start_pos:end_pos)))
         }
       }
     }
@@ -165,7 +162,7 @@ find_shoulders = function(binary_mat, Proteinnamen) {
       if (values[j] == 1 && lengths[j] >= 4) {
         start_pos = starts[j]
         end_pos = ends[j]
-        schulter_idx = c(schulter_idx, mean(start_pos:end_pos))
+        schulter_idx = c(schulter_idx, round(mean(start_pos:end_pos)))
       }
     }
     
@@ -185,9 +182,9 @@ find_shoulders = function(binary_mat, Proteinnamen) {
 }
 ```
 
-
 ### Schulterpunkte für Kontrolle
-```{r} 
+
+```{r}
 #vorübergehenes Entfernen von Proteinmenge die unter Threshold liegt
 Schulter_Mittelwerte_Kontrolle = ifelse(Mittelwerte_Kontrolle > 2, 1, 0) # wenn größer als 2 dann wird es zu 1 sonst wird der Wert auf 0 gesetzt
 
@@ -234,7 +231,8 @@ Schulterpunkte_RNAse = find_shoulders(Schulter_Mittelwerte_RNAse, Proteinnamen)
 # es gibt nicht viele Schulterpunkte bei 2,5 die frage ist nur ob wir die entfernen müssen
 
 ## Zusammenführen der Werte
-Ich würde das nochmal bisschen verändern aber so funktioniert es auf jeden Fall und wir haben Tabellen in denen jetzt alle Maxima & Schulerpunkte haben zum Weiterarbeiten
+
+Ich würde das nochmal bisschen verändern aber so funktioniert es auf jeden Fall und wir haben Tabellen in denen jetzt alle Maxima & Schulterpunkte haben zum Weiterarbeiten
 
 ```{r}
 # Für Schulterpunkte Wert hinzufügen
@@ -247,6 +245,7 @@ Schulterpunkte_RNAse$Fraktion_gerundet = round(Schulterpunkte_RNAse$Fraktion)
 Schulterpunkte_RNAse$Wert = mapply(function(zeile, fraktion) {
   Mittelwerte_RNAse[zeile, fraktion]
 }, Schulterpunkte_RNAse$Zeile, Schulterpunkte_RNAse$Fraktion_gerundet)
+
 
 # Markieren und zusammenfügen Kontrolle
 Maxima_Mittelwerte_Kontrolle$Typ = "Maxima"
@@ -269,9 +268,10 @@ Combined_RNAse = rbind(
 Combined_RNAse = Combined_RNAse[order(Combined_RNAse$Zeile, Combined_RNAse$Fraktion), ]
 ```
 
+# Vergleich von RNAse & Kontrolle + Kriterien
 
+### p-Werte für Amplitudendifferenz
 
-# Vergleich von RNAse & Kontrolle
 ```{r}
 # P-Werte bestimmen für die verschiedenen Maxima
 # Spaltennamen dedr Subtabellen nue benennen, um darauf zugreifen zu können über Combined_Kontrolle und Combined_RNAse
@@ -355,19 +355,21 @@ for (i in 1:nrow(shared_peaks)) {
 p_Werte$adj_p = p.adjust(p_Werte$P_Value, method = "BH")
 
 ```
+
 ```{r}
 p_werte_005 = p_Werte$Protein[which(p_Werte$adj_p <= 0.05)]
 p_werte_005
 ```
 
+## Funktion mit allen relevanten paramtern erstellen, die für jedes Protein bestimmt werden
+
+-   maxima werte (amplitude) -\> threshold für relevantes maximum festlegen
+-   differenz der amplituden -\> gain (rnase) oder loss (Kontrolle)?
+-   proteinmenge (area under the curve) -
+-   unterschied in position der maxima - Abstand
+-   p werte dazu schreiben
 
 ```{r}
-# Funktion mit allen relevanten paramtern erstellen, die für jedes Protein bestimmt werden
-#maxima werte (amplitude) -> threshold für relevantes maximum festlegen
-#differenz der amplituden -> gain (rnase) oder loss (Kontrolle)?
-#proteinmenge (area under the curve) -
-#unterschied in position der maxima - Abstand
-#p werte dazu schreiben
 liste_maxima_Ctrl = split(Combined_Kontrolle[, c("Fraktion", "Wert")], Combined_Kontrolle$Protein)
 liste_maxima_RNAse = split(Combined_RNAse[, c("Fraktion", "Wert")], Combined_RNAse$Protein)
 
@@ -387,10 +389,12 @@ hol_shifts = function(Protein) {
   
   #Abstände aller Maxima zueinander zwischen Kontrolle und RNAse berechnen
   abstände = c()
-  for (i in 1: nb_ctrl_maxima) {
-    abstände = c(abstände,liste_maxima_RNAse$Fraktion[i]-liste_maxima_Ctrl$Fraktion)
+  for (i in 1:nb_ctrl_maxima) {
+  for (j in 1:nb_rnase_maxima) {
+    abstand = rnase_maxima$Fraktion[j] - ctrl_maxima$Fraktion[i]
+    abstände = c(abstände, abstand)
   }
-  abstände = unlist(abstände)
+}
   
   # Differenz der Amplituden
    if (is.null(ctrl_maxima)) ctrl_maxima = data.frame(Fraktion = numeric(0), Wert = numeric(0))
@@ -419,102 +423,77 @@ hol_shifts = function(Protein) {
     gain_list = c(gain_list, amp_rnase - amp_ctrl)
   }
   # Proteinmenge berechnen
+  
+  
+  # p-Werte
+  p_values = sapply(ctrl_maxima$Fraktion, function(f) {
+    p_val = p_Werte$adj_p[p_Werte$Protein == Protein & p_Werte$Fraktion == f]
+    if(length(p_val) == 0) NA else p_val[1]  # falls mehrere, nur ersten nehmen
+  })
+  
+  
   return(list(
     Protein = Protein,
     Anzahl_Kontroll_Maxima = nb_ctrl_maxima,
     Anzahl_RNase_Maxima = nb_rnase_maxima,
     Abstände_Maxima = abstände,
+    Shift_idx = sum(abstände),
     Verlust_Amplituden = loss_list,
     Gewinn_Amplituden = gain_list,
-    Summierter_Verlust = sum(loss_list),
-    Summierter_Gewinn = sum(gain_list)
+    p_Werte= p_values
   ))
 }
 
+zeile = 'DNJA3_HUMAN'
 
-
-hol_shifts('1433B_HUMAN')
+hol_shifts(zeile)
 ```
 
+## Funktion für entscheidung über Liste wo das Protein einsortiert wird
+
+-   Kriterien die gegeben sein müssen:
+
+-   p-Wert muss \< 0.05 sein damit signifikant (im Zusammenhang mit gain/loss)
+
+-   Summe der horizontale Differenz der Maximastellen (x-Werte) RNAse - Kontrolle:
+
+    -   =0: kein shift
+
+    -   \<0: left shift
+
+    -   \>0 right shift
+
+wenn das gegeben ist dann 100% ein Shiftendes Protein = RNA-Abhängigkeiten
+
+-   wenn Anzahl an Maxima sich verändert dann shift
+
+- 
+
+
+wenn horizontale Differnez = 0 aber (veränderung der Anzahl an peaks):
+-   gain/loss  !! nochmal genauer!!
+- erst verlust dann Gewinn => right
+- erst Gewinn dann Verlust => left
 
 ```{r}
-plot(1:25, Ctrl1_norm['41_HUMAN',], type = "l", col = "blue",
-     xlab = "Fraktion", ylab = "Intensität", main = "Proteinverteilung")
+# Index
 
 
- plot(1:25, RNAse1_norm['41_HUMAN',], type = "l", col = "blue",
-    xlab = "Fraktion", ylab = "Intensität", main = "Proteinverteilung")
+# Y-Achsen-Limits berechnen
+# Werte aus beiden Datensätzen kombinieren
+alle_werte <- c(Mittelwerte_Kontrolle[zeile,], RNAse1_norm[zeile,])
+ylim_bereich <- range(alle_werte, na.rm = TRUE)
+
+# Erster Plot mit manuellem ylim
+plot(1:25, Ctrl1_norm[zeile,], type = "l", col = 'purple',
+     xlab = "Fraktion", ylab = "Intensität", main = "Proteinverteilung",
+     ylim = ylim_bereich)
+
+# Zweiter Plot hinzufügen
+lines(1:25, RNAse1_norm[zeile,], col = "darkblue")
+
+# Legende
+legend("topright", legend = c("Ctrl1_norm", "RNAse1_norm"),
+       col = c("purple", "darkblue"), lty = 1, cex = 0.8)
 
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-## Jettes Plan
-- Funktionen erstellen für verschiedene anzahl an peaks (gucken, wie viele es generell gibt) mit Parametern Mittelwert, Standardabweichung, Amplitude, die Fehlerberechnung beinhalten und somit für jedes Protein für die jeweilige Verteilung optimiert werden können
-- mit der optimierung für jedes Protein (noch bei den Mittelwerten der replikate) die passenden Parameter erhalten
-- also optimierung für jeden der drei parameter und für jedes Treatment
-- optimierte parameter abspeichern als vektor
-- danach erst Gauß fit für jedes Replikat durchführen
-
-https://chatgpt.com/share/683b2417-6030-8006-b6d2-479f6f34f641
-
-------------------------------------------------------------------------
-
-### 🟩 **Was im Protokoll gemacht wurde:**
-
-1️⃣ **Teil 2 (Peaks & Fit-Parameter)** Das Gauß-Fitting in Teil 2 wurde auf den **gemittelten Profilen** (also dem Durchschnitt aus je drei Replikaten) gemacht:
-
--   **1 Mittelwert-Kurve** für Kontrolle (CTRL)
--   **1 Mittelwert-Kurve** für RNase
-
-➡️ Ziel:
-
--   **robuste Erkennung von Maxima und Schultern**
--   „globale“ Fit-Parameter (Amplitude, Lage, Breite) der **Durchschnittskurve** pro Protein und Bedingung
--   diese Maxima-Positionen dienen als „Startpunkte“ für die Fits in Teil 3
-
-------------------------------------------------------------------------
-
-2️⃣ **Teil 3 (Gaussian Fit auf Einzeldaten)** Hier wurde das **Gauß-Fitting für alle 6 Replikate einzeln** durchgeführt!
-
--   **3 Replikate für Kontrolle (ctrl1, ctrl2, ctrl3)**
--   **3 Replikate für RNase (rnase1, rnase2, rnase3)**
-
-➡️ Ziel:
-
--   **individuelle Fit-Parameter** pro Replikat (z.B. Amplitude = Proteinmenge in diesem Peak in diesem Replikat!)
--   diese Werte werden später (Teil 5) mit einem **t-Test** zwischen den Bedingungen (CTRL vs. RNase) verglichen.
-
-------------------------------------------------------------------------
-
-### 🟡 **Zusammengefasst:**
-
-| Phase | Datenbasis | Ziel |
-|---------------|------------------|---------------------------------------|
-| **Teil 2** | Mittelwert-Kurve aus 3 Replikaten | Finden von Peaks und deren Startparameter (robust, stabil) |
-| **Teil 3** | 6 Replikat-Kurven (je Protein) | Fit-Parameter (Amplitude, Position, Breite) pro Replikat ermitteln |
-
-------------------------------------------------------------------------
-
-✅ **Also: Das finale Gauß-Fitting für die t-Tests wird an allen 6 Replikaten gemacht!** ❌ **Nicht nur auf den Mittelwerten!** ✅ Aber die Mittelwert-Kurve liefert die „guten Startwerte“, damit die Fits bei den Einzel-Replikaten stabiler sind.
-
-------------------------------------------------------------------------
-
-💡 **Falls du möchtest**, kann ich dir das gerne auch als „Schema“ zeichnen (z.B. Flowchart), wie das Protokoll hier abläuft! 🚀
