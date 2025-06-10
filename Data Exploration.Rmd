@@ -355,6 +355,11 @@ for (i in 1:nrow(shared_peaks)) {
 p_Werte$adj_p = p.adjust(p_Werte$P_Value, method = "BH")
 
 ```
+```{r}
+p_werte_005 = p_Werte$Protein[which(p_Werte$adj_p <= 0.05)]
+p_werte_005
+```
+
 
 ```{r}
 # Funktion mit allen relevanten paramtern erstellen, die für jedes Protein bestimmt werden
