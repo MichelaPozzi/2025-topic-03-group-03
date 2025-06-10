@@ -382,7 +382,7 @@ hol_shifts = function(Protein) {
   
   #Abstände aller Maxima zueinander zwischen Kontrolle und RNAse berechnen
   abstände = c()
-  for (i in 1: nrow(liste_maxima_RNAse)) {
+  for (i in 1: nb_ctrl_maxima) {
     abstände = c(abstände,liste_maxima_RNAse$Fraktion[i]-liste_maxima_Ctrl$Fraktion)
   }
   abstände = unlist(abstände)
@@ -393,7 +393,7 @@ hol_shifts = function(Protein) {
 
   # Loss: Kontroll-Maxima -> RNase
   loss_list = c()
-  for (i in 1:nrow(ctrl_maxima)) {
+  for (i in 1:nb_ctrl_maxima) {
     fraktion_i = ctrl_maxima$Fraktion[i]
     amp_ctrl = ctrl_maxima$Wert[i]
 
@@ -404,7 +404,7 @@ hol_shifts = function(Protein) {
   } 
   # Gain: RNAse-Maxima -> Kontrolle
   gain_list = c()
-  for (i in 1:nrow(rnase_maxima)) {
+  for (i in 1:nb_rnase_maxima) {
     fraktion_i = rnase_maxima$Fraktion[i]
     amp_rnase = rnase_maxima$Wert[i]
 
@@ -414,7 +414,21 @@ hol_shifts = function(Protein) {
     gain_list = c(gain_list, amp_rnase - amp_ctrl)
   }
   # Proteinmenge berechnen
+  return(list(
+    Protein = Protein,
+    Anzahl_Kontroll_Maxima = nb_ctrl_maxima,
+    Anzahl_RNase_Maxima = nb_rnase_maxima,
+    Abstände_Maxima = abstände,
+    Verlust_Amplituden = loss_list,
+    Gewinn_Amplituden = gain_list,
+    Summierter_Verlust = sum(loss_list),
+    Summierter_Gewinn = sum(gain_list)
+  ))
 }
+
+
+
+hol_shifts('1433B_HUMAN')
 ```
 
 
