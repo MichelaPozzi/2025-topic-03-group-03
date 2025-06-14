@@ -342,6 +342,7 @@ for (i in 1:nrow(shared_peaks)) {
   }
 
   # t-Test nur wenn beide Gruppen mindestens 2 Werte haben
+  # Annahme für den T-Test, dass Replikate normalverteilt sind, um den T-Test überhaupt durchführen zu können
   # Varianztest mit F-Test, um zu gucken, ob Kontrolle und RNAse gleiche Varianz haben: wichtig für t-Test Durchführung
 
   if (length(ctrl_vals) >= 2 && length(rnase_vals) >= 2) {
@@ -377,7 +378,7 @@ p_werte_005 = p_Werte$Protein[which(p_Werte$adj_p <= 0.05)]
 ```{r}
 library(pracma)  # Für trapz()
 
-hol_shifts <- function(protein) {
+hol_shifts <- function(protein, threshold_res = 0.3) {
   window <- 2  # Größe des Fraktionsfensters
 
   # Maxima holen
@@ -386,6 +387,16 @@ hol_shifts <- function(protein) {
 
   if (is.null(ctrl_maxima)) ctrl_maxima <- data.frame(Fraktion = numeric(0), Wert = numeric(0))
   if (is.null(rnase_maxima)) rnase_maxima <- data.frame(Fraktion = numeric(0), Wert = numeric(0))
+  
+  if (nrow(ctrl_maxima) > 0) {
+    max_ctrl = max(ctrl_maxima$Wert)
+    ctrl_maxima = ctrl_maxima[ctrl_maxima$Wert >= threshold_rel * max_ctrl, ]
+  }
+  
+  if (nrow(rnase_maxima) > 0) {
+    max_rnase = max(rnase_maxima$Wert)
+    rnase_maxima = rnase_maxima[rnase_maxima$Wert >= threshold_rel * max_rnase, ]
+  }
 
   nb_ctrl_maxima <- nrow(ctrl_maxima)
   nb_rnase_maxima <- nrow(rnase_maxima)
