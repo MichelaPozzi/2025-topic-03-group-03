@@ -77,7 +77,7 @@ sum(sapply(MS_Table, is.numeric))
 ### Entfernen von FHOD3_HUMAN
 
 ```{r}
-MS_Table = MS_Table[-2089,]
+MS_Table = MS_Table[setdiff(rownames(MS_Table), 'FHOD3_HUMAN'),]
 ```
 
 # Normierung

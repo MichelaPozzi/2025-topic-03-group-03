@@ -11,6 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 MS_Table_norm = read.table("MS_Table.norm.csv", header=TRUE, row.names=1, sep = ",")
 ```
+
 ```{r}
 install.packages("pracma")
 ```
@@ -361,7 +362,7 @@ p_Werte$adj_p = p.adjust(p_Werte$P_Value, method = "BH")
 
 ```{r}
 p_werte_005 = p_Werte$Protein[which(p_Werte$adj_p <= 0.05)]
-p_werte_005
+
 ```
 
 ## Funktion mit allen relevanten paramtern erstellen, die für jedes Protein bestimmt werden
@@ -372,85 +373,6 @@ p_werte_005
 -   unterschied in position der maxima - Abstand
 -   p werte dazu schreiben
 
-```{r}
-liste_maxima_Ctrl = split(Combined_Kontrolle[, c("Fraktion", "Wert")], Combined_Kontrolle$Protein)
-liste_maxima_RNAse = split(Combined_RNAse[, c("Fraktion", "Wert")], Combined_RNAse$Protein)
-
-
-hol_shifts = function(Protein) { 
-  shift = numeric(0)
-  
-  # maxima holen
-  ctrl_maxima = liste_maxima_Ctrl[[Protein]]
-  rnase_maxima = liste_maxima_RNAse[[Protein]]
-  
-  if (is.null(ctrl_maxima)) ctrl_maxima = data.frame(Fraktion = numeric(0), Wert = numeric(0))
-  if (is.null(rnase_maxima)) rnase_maxima = data.frame(Fraktion = numeric(0), Wert = numeric(0))
-  
-  nb_ctrl_maxima = nrow(ctrl_maxima)
-  nb_rnase_maxima = nrow(rnase_maxima)
-  
-  #Abstände aller Maxima zueinander zwischen Kontrolle und RNAse berechnen
-  abstände = c()
-  for (i in 1:nb_ctrl_maxima) {
-  for (j in 1:nb_rnase_maxima) {
-    abstand = rnase_maxima$Fraktion[j] - ctrl_maxima$Fraktion[i]
-    abstände = c(abstände, abstand)
-  }
-}
-  
-  # Differenz der Amplituden
-   if (is.null(ctrl_maxima)) ctrl_maxima = data.frame(Fraktion = numeric(0), Wert = numeric(0))
-   if (is.null(rnase_maxima)) rnase_maxima = data.frame(Fraktion = numeric(0), Wert = numeric(0))
-
-  # Loss: Kontroll-Maxima -> RNase
-  loss_list = c()
-  for (i in 1:nb_ctrl_maxima) {
-    fraktion_i = ctrl_maxima$Fraktion[i]
-    amp_ctrl = ctrl_maxima$Wert[i]
-
-    amp_rnase = Combined_RNAse$Wert[Combined_RNAse$Protein == Protein & Combined_RNAse$Fraktion == fraktion_i]
-    if (length(amp_rnase) == 0) amp_rnase = 0
-
-    loss_list = c(loss_list, amp_ctrl - amp_rnase)
-  } 
-  # Gain: RNAse-Maxima -> Kontrolle
-  gain_list = c()
-  for (i in 1:nb_rnase_maxima) {
-    fraktion_i = rnase_maxima$Fraktion[i]
-    amp_rnase = rnase_maxima$Wert[i]
-
-    amp_ctrl = Combined_Kontrolle$Wert[Combined_Kontrolle$Protein == Protein & Combined_Kontrolle$Fraktion == fraktion_i]
-    if (length(amp_ctrl) == 0) amp_ctrl = 0
-
-    gain_list = c(gain_list, amp_rnase - amp_ctrl)
-  }
-  # Proteinmenge berechnen
-  
-  
-  # p-Werte
-  p_values = sapply(ctrl_maxima$Fraktion, function(f) {
-    p_val = p_Werte$adj_p[p_Werte$Protein == Protein & p_Werte$Fraktion == f]
-    if(length(p_val) == 0) NA else p_val[1]  # falls mehrere, nur ersten nehmen
-  })
-  
-  
-  return(list(
-    Protein = Protein,
-    Anzahl_Kontroll_Maxima = nb_ctrl_maxima,
-    Anzahl_RNase_Maxima = nb_rnase_maxima,
-    Abstände_Maxima = abstände,
-    Shift_idx = sum(abstände),
-    Verlust_Amplituden = loss_list,
-    Gewinn_Amplituden = gain_list,
-    p_Werte= p_values
-  ))
-}
-
-zeile = 'DNJA3_HUMAN'
-
-hol_shifts(zeile)
-```
 
 ```{r}
 library(pracma)  # Für trapz()
@@ -542,6 +464,8 @@ hol_shifts <- function(protein) {
     Shift_idx = sum(abstände),
     Verlust_Amplituden = loss_list,
     Gewinn_Amplituden = gain_list,
+    Summierter_Verlust = sum(loss_list),
+    Summierter_Gewinn = sum(gain_list),
     Fläche_Kontrolle = flaeche_kontrolle,
     Fläche_RNase = flaeche_rnase,
     p_Werte = p_values
@@ -553,7 +477,36 @@ zeile = '2A5A_HUMAN'
 hol_shifts(zeile)
 ```
 
+```{r}
+proteine = unique(c(names(liste_maxima_Ctrl), names(liste_maxima_RNAse)))
 
+ergebnisse = lapply(proteine, function(p) {
+  res = hol_shifts(p)
+  
+  data.frame(
+    Protein = res$Protein,
+    Anzahl_Kontroll_Maxima = res$Anzahl_Kontroll_Maxima,
+    Anzahl_RNase_Maxima = res$Anzahl_RNase_Maxima,
+    Shift_idx = res$Shift_idx,
+    Summierter_Verlust = res$Summierter_Verlust,
+    Summierter_Gewinn = res$Summierter_Gewinn,
+    Abstaende_Maxima = paste(res$Abstände_Maxima, collapse = ";"),
+    Verlust_Amplituden = paste(res$Verlust_Amplituden, collapse = ";"),
+    Gewinn_Amplituden = paste(res$Gewinn_Amplituden, collapse = ";"),
+    Fläche_Kontrolle = paste(res$Fläche_Kontrolle,collapse = ";"),
+    Fläche_RNase = paste(res$Fläche_RNase,collapse = ";"),
+    p_Werte = paste(res$p_Werte, collapse = ";")
+  )
+})
+df_ergebnisse = do.call(rbind, ergebnisse)
+
+
+df_ergebnisse = df_ergebnisse[df_ergebnisse$Protein != 'P210L_HUMAN',]
+df_ergebnisse = df_ergebnisse[df_ergebnisse$Protein != 'PKD1_HUMAN',]
+df_ergebnisse = df_ergebnisse[df_ergebnisse$Protein != 'TGM7_HUMAN',]
+df_ergebnisse = df_ergebnisse[df_ergebnisse$Protein != 'KIF1A_HUMAN',]
+
+```
 
 ## Funktion für entscheidung über Liste wo das Protein einsortiert wird
 
@@ -587,7 +540,7 @@ zeile = '2A5A_HUMAN'
 
 # Y-Achsen-Limits berechnen
 # Werte aus beiden Datensätzen kombinieren
-alle_werte <- c(Mittelwerte_Kontrolle[zeile,], RNAse1_norm[zeile,])
+alle_werte <- c(Mittelwerte_Kontrolle[zeile,], Mittelwerte_RNAse[zeile,])
 ylim_bereich <- range(alle_werte, na.rm = TRUE)
 
 # Erster Plot mit manuellem ylim
