@@ -11,6 +11,9 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 MS_Table_norm = read.table("MS_Table.norm.csv", header=TRUE, row.names=1, sep = ",")
 ```
+```{r}
+install.packages("pracma")
+```
 
 # Data exploration
 
@@ -449,6 +452,109 @@ zeile = 'DNJA3_HUMAN'
 hol_shifts(zeile)
 ```
 
+```{r}
+library(pracma)  # Für trapz()
+
+hol_shifts <- function(protein) {
+  window <- 2  # Größe des Fraktionsfensters
+
+  # Maxima holen
+  ctrl_maxima <- liste_maxima_Ctrl[[protein]]
+  rnase_maxima <- liste_maxima_RNAse[[protein]]
+
+  if (is.null(ctrl_maxima)) ctrl_maxima <- data.frame(Fraktion = numeric(0), Wert = numeric(0))
+  if (is.null(rnase_maxima)) rnase_maxima <- data.frame(Fraktion = numeric(0), Wert = numeric(0))
+
+  nb_ctrl_maxima <- nrow(ctrl_maxima)
+  nb_rnase_maxima <- nrow(rnase_maxima)
+
+  # Abstände der Maxima
+  abstände <- c()
+  for (i in 1:nb_ctrl_maxima) {
+    for (j in 1:nb_rnase_maxima) {
+      abstand <- rnase_maxima$Fraktion[j] - ctrl_maxima$Fraktion[i]
+      abstände <- c(abstände, abstand)
+    }
+  }
+
+  # Funktion zur Flächenberechnung mit Trapezregel über Replikat-Dataframes
+  calc_area <- function(df_list, protein, center_frac, window) {
+    sapply(df_list, function(df) {
+      if (protein %in% rownames(df)) {
+        fracs <- as.numeric(colnames(df))
+        idxs <- which(fracs >= (center_frac - window) & fracs <= (center_frac + window))
+        if (length(idxs) >= 2) {
+          x_vals <- fracs[idxs]
+          y_vals <- as.numeric(df[protein, idxs])
+          y_vals <- na.omit(y_vals)
+          if (length(y_vals) == length(x_vals) && length(y_vals) >= 2) {
+            return(trapz(x_vals, y_vals))
+          }
+        }
+      }
+      return(NA)
+    })
+  }
+
+  # Amplitudenverlust + Fläche unter Kontroll-Peaks
+  loss_list <- c()
+  flaeche_kontrolle <- c()
+  for (i in 1:nb_ctrl_maxima) {
+    fraktion_i <- as.character(ctrl_maxima$Fraktion[i])
+    amp_ctrl <- ctrl_maxima$Wert[i]
+
+    amp_rnase <- Combined_RNAse$Wert[Combined_RNAse$Protein == protein & Combined_RNAse$Fraktion == fraktion_i]
+    if (length(amp_rnase) == 0) amp_rnase <- 0
+
+    loss_list <- c(loss_list, amp_ctrl - amp_rnase)
+
+    flächen_vals <- calc_area(ctrl_reps, protein, as.numeric(fraktion_i), window)
+    flaeche_kontrolle <- c(flaeche_kontrolle, mean(na.omit(flächen_vals)))
+  }
+
+  # Amplitudengewinn + Fläche unter RNase-Peaks
+  gain_list <- c()
+  flaeche_rnase <- c()
+  for (i in 1:nb_rnase_maxima) {
+    fraktion_i <- as.character(rnase_maxima$Fraktion[i])
+    amp_rnase <- rnase_maxima$Wert[i]
+
+    amp_ctrl <- Combined_Kontrolle$Wert[Combined_Kontrolle$Protein == protein & Combined_Kontrolle$Fraktion == fraktion_i]
+    if (length(amp_ctrl) == 0) amp_ctrl <- 0
+
+    gain_list <- c(gain_list, amp_rnase - amp_ctrl)
+
+    flächen_vals <- calc_area(rnase_reps, protein, as.numeric(fraktion_i), window)
+    flaeche_rnase <- c(flaeche_rnase, mean(na.omit(flächen_vals)))
+  }
+
+  # p-Werte für Peaks aus vorher berechnetem p_Werte
+  p_values <- sapply(ctrl_maxima$Fraktion, function(f) {
+    p_val <- p_Werte$adj_p[p_Werte$Protein == protein & p_Werte$Fraktion == f]
+    if (length(p_val) == 0) NA else p_val[1]
+  })
+
+  return(list(
+    Protein = protein,
+    Anzahl_Kontroll_Maxima = nb_ctrl_maxima,
+    Anzahl_RNase_Maxima = nb_rnase_maxima,
+    Abstände_Maxima = abstände,
+    Shift_idx = sum(abstände),
+    Verlust_Amplituden = loss_list,
+    Gewinn_Amplituden = gain_list,
+    Fläche_Kontrolle = flaeche_kontrolle,
+    Fläche_RNase = flaeche_rnase,
+    p_Werte = p_values
+  ))
+}
+
+zeile = '2A5A_HUMAN'
+
+hol_shifts(zeile)
+```
+
+
+
 ## Funktion für entscheidung über Liste wo das Protein einsortiert wird
 
 -   Kriterien die gegeben sein müssen:
@@ -477,7 +583,7 @@ wenn horizontale Differnez = 0 aber (veränderung der Anzahl an peaks):
 
 ```{r}
 # Index
-
+zeile = '2A5A_HUMAN'
 
 # Y-Achsen-Limits berechnen
 # Werte aus beiden Datensätzen kombinieren
