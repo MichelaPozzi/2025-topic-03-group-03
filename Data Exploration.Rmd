@@ -490,6 +490,7 @@ zeile = '2A5A_HUMAN'
 
 hol_shifts(zeile)
 ```
+Zusammenfügen der Unterlisten zu 
 
 ```{r}
 proteine = unique(c(names(liste_maxima_Ctrl), names(liste_maxima_RNAse)))
@@ -522,6 +523,9 @@ df_ergebnisse = df_ergebnisse[df_ergebnisse$Protein != 'KIF1A_HUMAN',]
 
 ```
 
+
+
+ 
 ## Funktion für entscheidung über Liste wo das Protein einsortiert wird
 
 -   Kriterien die gegeben sein müssen:
@@ -548,13 +552,155 @@ wenn horizontale Differnez = 0 aber (veränderung der Anzahl an peaks):
 - erst verlust dann Gewinn => right
 - erst Gewinn dann Verlust => left
 
+
+
+```{r}
+berechne_shift_merkmale <- function(res) {
+  # p-Werte
+  p_signifikant <- any(res$p_Werte < 0.05, na.rm = TRUE)
+
+  # Amplitudensummen
+  amplitude_total <- res$Summierter_Gewinn + res$Summierter_Verlust
+
+  # Anzahl Maxima
+  diff_maxima <- res$Anzahl_RNase_Maxima - res$Anzahl_Kontroll_Maxima
+
+  # Shiftrichtung über Maximadifferenz
+  richtung <- "kein Shift"
+  if (res$Shift_idx > 0) {
+    richtung <- "right"
+  } else if (res$Shift_idx < 0) {
+    richtung <- "left"
+  }
+
+  # Fälle behandeln, wo Shift_idx = 0
+  if (res$Shift_idx == 0) {
+    if (diff_maxima != 0) {
+      # Interpretationslogik bei gleicher Lage aber Peak-Gewinn/Verlust
+      if (res$Summierter_Verlust > 0 && res$Summierter_Gewinn > 0) {
+        richtung <- ifelse(which.max(c(res$Summierter_Gewinn, res$Summierter_Verlust)) == 1, "right", "left")
+      } else if (res$Summierter_Gewinn > 0) {
+        richtung <- "right"
+      } else if (res$Summierter_Verlust > 0) {
+        richtung <- "left"
+      }
+    } else {
+      richtung <- "kein Shift"
+    }
+  }
+
+  # Shift-Score-Kategorie
+  kategorie <- "kein Shift"
+
+  if (!is.na(amplitude_total) && (amplitude_total < -1 || amplitude_total > 1)) {
+    if (p_signifikant) {
+      kategorie <- paste("signifikanter", richtung, "Shift")
+    } else {
+      kategorie <- paste("nicht signifikanter", richtung, "Shift")
+    }
+  }
+
+  # Rückgabe als Liste
+  return(list(
+    Score = amplitude_total,
+    Richtung = richtung,
+    Kategorie = kategorie,
+    p_signifikant = p_signifikant
+  ))
+}
+
+```
+
+
+```{r}
+klassifiziere_protein_korrekt <- function(row) {
+  parse_numeric_vector <- function(x) {
+    if (is.na(x) || is.null(x)) return(numeric(0))
+    suppressWarnings(as.numeric(unlist(strsplit(x, ";"))))
+  }
+
+  # --- p-Werte prüfen ---
+  p_vals <- parse_numeric_vector(row[["p_Werte"]])
+  p_vals_vorhanden <- length(p_vals) > 0 && !all(is.na(p_vals))
+  signifikant <- p_vals_vorhanden && any(p_vals < 0.05, na.rm = TRUE)
+
+  score <- 0
+  richtung <- NA
+
+  # --- Shift-Index ---
+  shift_idx <- suppressWarnings(as.numeric(row[["Shift_idx"]]))
+  if (!is.na(shift_idx)) {
+    score <- score + min(2, abs(shift_idx))
+    richtung <- ifelse(shift_idx > 0, "right",
+                       ifelse(shift_idx < 0, "left", richtung))
+  }
+
+  # --- Anzahl Maxima ---
+  max_kontrolle <- suppressWarnings(as.numeric(row[["Anzahl_Kontroll_Maxima"]]))
+  max_rnase <- suppressWarnings(as.numeric(row[["Anzahl_RNase_Maxima"]]))
+  if (!is.na(max_kontrolle) && !is.na(max_rnase)) {
+    diff_maxima <- abs(max_rnase - max_kontrolle)
+    score <- score + ifelse(diff_maxima >= 2, 2, ifelse(diff_maxima == 1, 1, 0))
+    if (is.na(richtung) && diff_maxima > 0) {
+      richtung <- ifelse(max_rnase > max_kontrolle, "right", "left")
+    }
+  }
+
+  # --- Amplituden-Betrachtung NUR wenn erlaubt ---
+  if (signifikant) {
+    sum_gewinn <- suppressWarnings(as.numeric(row[["Summierter_Gewinn"]]))
+    sum_verlust <- suppressWarnings(as.numeric(row[["Summierter_Verlust"]]))
+    amplitude_total <- sum_gewinn + sum_verlust
+    if (!is.na(amplitude_total) && abs(amplitude_total) > 1) {
+      score <- score + 1
+    }
+
+    verlust_vec <- parse_numeric_vector(row[["Verlust_Amplituden"]])
+    gewinn_vec <- parse_numeric_vector(row[["Gewinn_Amplituden"]])
+    if (length(verlust_vec) > 0 && length(gewinn_vec) > 0) {
+      v_idx <- which.max(verlust_vec)
+      g_idx <- which.max(gewinn_vec)
+      if (!is.na(v_idx) && !is.na(g_idx)) {
+        if (v_idx < g_idx) {
+          richtung <- "right"
+        } else if (g_idx < v_idx) {
+          richtung <- "left"
+        }
+        score <- score + 1
+      }
+    }
+  }
+
+  # --- Klassifikation ---
+  if (is.na(richtung)) richtung <- "unbekannt"
+
+  if (score >= 5) {
+    return(paste0("starker_", richtung, "_shift"))
+  } else if (score >= 3) {
+    return(paste0("moderater_", richtung, "_shift"))
+#  } else if (score >= 1) {
+#    return(paste0("schwacher_", richtung, "_shift"))
+  } else {
+    return("kein_shift")
+  }
+}
+
+
+df_ergebnisse$Kategorie <- apply(df_ergebnisse, 1, klassifiziere_protein_korrekt)
+
+
+```
+
+
+
+
 ```{r}
 # Index
-zeile = 'ADAS_HUMAN'
+zeile = 'EI2BB_HUMAN'
 
 # Y-Achsen-Limits berechnen
 # Werte aus beiden Datensätzen kombinieren
-alle_werte <- c(Mittelwerte_Kontrolle[zeile,], Mittelwerte_RNAse[zeile,])
+alle_werte <- c(Ctrl1_norm[zeile,], RNAse1_norm[zeile,])
 ylim_bereich <- range(alle_werte, na.rm = TRUE)
 
 # Erster Plot mit manuellem ylim
