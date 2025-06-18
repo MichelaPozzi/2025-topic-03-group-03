@@ -76,9 +76,12 @@ library(cluster)
 library(RColorBrewer)
 col = brewer.pal(9, 'Set1')
 
-# Elbow-Methode
-fviz_nbclust(pca_data, kmeans, method = "wss") +
-  ggtitle("Elbow-Methode – optimale Clusteranzahl")
+# Elbow-Methode(Zusatzt Linie zum Knickpunkt) => Verändert
+elbow_plot <- fviz_nbclust(pca_data, kmeans, method = "wss") +
+  ggtitle("Elbow-Methode – optimale Clusteranzahl") +
+  geom_vline(xintercept = 5, linetype = 2, color = "blue")  # Code bestimmt trz. nicht optimales k => muss selber bei "x-intercept" eingesetzt werden
+
+print(elbow_plot)
 
 # Silhouette-Methode
 fviz_nbclust(pca_data, kmeans, method = "silhouette") +
@@ -100,14 +103,109 @@ plot(pca$x[,1], pca$x[,2],
      xlab = "PC1", ylab = "PC2",
      main = "K-Means Clustering auf PCA (k=3)")
 
-# Erstellen eines Silhouette Plots zur Bewertung der Clusterqualität
-dist_matrix = dist(pca_data)
-sil = silhouette(cluster_assignment, dist_matrix)
-plot(sil, col = col[1:max(cluster_assignment)],
-     main = "Silhouette Plot für k = 3")
+# Erstellung Silhouette Plots zur Bewertung der Clusterqualität => Verändert
+
+# Silhouette-Plot (so, dass wenn der Datensatz zu groß ist eine Stichprobe erstellt wird)
+
+library(factoextra)
+
+# Prüfen ob Datensatz zu groß ist (> 1000 Beobachtungen)
+n_obs <- nrow(pca_data)
+sample_threshold <- 1000  #bestimmt ab wann Stichprobe gemacht werden sollte
+
+if (n_obs > sample_threshold) {
+  # Stichprobe ziehen
+  set.seed(42)
+  sample_idx <- sample(1:n_obs, 500)  # Größe der Stichprobe wird durch zuvorgehenden Code bestimmt 
+  pca_sample <- pca_data[sample_idx, ]
+  cluster_sample <- cluster_assignment[sample_idx]
+  dist_sample <- dist(pca_sample)
+  sil <- silhouette(cluster_sample, dist_sample)
+  message("Der Silhouette-Plot basiert jetzt auf einer Stichprobe von 500 Beobachtungen")
+} else {
+  # Verwendung des gesamten Datensatzes 
+  dist_matrix <- dist(pca_data)
+  sil <- silhouette(cluster_assignment, dist_matrix)
+}
+
+# Visualisierung mit factoextra
+fviz_silhouette(sil) +
+  ggtitle("Silhouette-Plot für K-Means Clustering")
+
 
 # Export der Cluster-Zuordnung als CSV Datei => später noch notwendig zum Beispiel zur Visualisierung 
 cluster_df = data.frame(Sample = colnames(MS_Table_norm),
                         Cluster = cluster_assignment)
 write.csv(cluster_df, "Cluster_Zuordnung.csv", row.names = FALSE)
 ```
+##Plotvisualisierungen für die Data Exploration 
+# Heatmap für Replikatenvergleich  
+```{r heatmap_replikate}
+
+print(dim(MS_Table_norm))
+print(colnames(MS_Table_norm))
+
+
+# Pakete laden
+library(pheatmap)
+library(RColorBrewer)
+
+# Definiere die Replikatspalten (aus deinem Clean-Up bekannt)
+replikate <- c("Fraction1_Ctrl_Rep1", "Fraction1_Ctrl_Rep2", "Fraction1_Ctrl_Rep3",
+               "Fraction1_RNase_Rep1", "Fraction1_RNase_Rep2", "Fraction1_RNase_Rep3")
+
+# Prüfen, welche Spalten fehlen => nur zur Fehlerfindung => wird dannach rausgenommen 
+missing <- replikate[!replikate %in% colnames(MS_Table_norm)]
+print(missing)
+
+# Subset aus der normierten Matrix
+data_for_heatmap <- MS_Table_norm[, replikate]
+
+# Transponieren: Zeilen = Replikate, Spalten = Proteine
+data_for_heatmap_t <- t(data_for_heatmap)
+
+# Farben für die Heatmap
+heat_colors <- colorRampPalette(brewer.pal(9, "YlGnBu"))(100)
+
+# Heatmap zeichnen
+pheatmap(data_for_heatmap_t,
+         scale = "row",  # z-Standardisierung der Replikate
+         clustering_distance_rows = "euclidean",
+         clustering_distance_cols = "euclidean",
+         clustering_method = "complete",
+         color = heat_colors,
+         main = "Heatmap: Vergleich der Replikate (MS_Table_norm)")
+```
+
+
+# Heatmap Proteinverteilung RNAse und Kontrolle im Vergleich 
+```{r heatmap_rnase_kontrolle}
+# Libraries
+library(pheatmap)
+library(RColorBrewer)
+
+# Spaltennamen (Proben)
+gruppen <- c("Kontrolle", "Kontrolle", "Kontrolle", "RNAse", "RNAse", "RNAse")
+names(gruppen) <- c("Fraction1_Ctrl_Rep1", "Fraction1_Ctrl_Rep2", "Fraction1_Ctrl_Rep3",
+                    "Fraction1_RNase_Rep1", "Fraction1_RNase_Rep2", "Fraction1_RNase_Rep3")
+
+# Annotation für die Probenfarben
+annotation_col <- data.frame(Gruppe = gruppen)
+rownames(annotation_col) <- names(gruppen)
+
+# Farben definieren
+group_colors <- list(Gruppe = c(Kontrolle = "lightblue", RNAse = "salmon"))
+
+# Optional: Top 50 variabelste Proteine auswählen
+top_var <- apply(MS_Table_norm, 1, var)
+top50 <- MS_Table_norm[order(top_var, decreasing = TRUE)[1:50], ]
+
+# Heatmap zeichnen
+pheatmap(top50,
+         scale = "row",
+         annotation_col = annotation_col,
+         annotation_colors = group_colors,
+         clustering_distance_cols = "euclidean",
+         clustering_method = "complete",
+         color = colorRampPalette(brewer.pal(9, "RdBu"))(100),
+         main = "Proteinverteilung: RNAse vs. Kontrolle")
