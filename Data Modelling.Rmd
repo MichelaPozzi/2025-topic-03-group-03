@@ -1,0 +1,36 @@
+---
+title: "Untitled"
+output: html_document
+date: "2025-06-19"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+
+
+# 1. Datei komplett als Text einlesen
+raw <- readLines("Table_HS_RBP.txt")
+
+# 2. Ab Zeile 7 extrahieren (Header + Daten)
+raw_data <- raw[7:length(raw)]
+
+# 3. Entferne alle \" (Backslash-Anführungszeichen)
+clean_data <- gsub('\\"', '', raw_data)
+
+# 4. Schreibe die bereinigten Zeilen in eine temporäre Datei
+writeLines(clean_data, "cleaned_table.txt")
+
+# 5. Lese die bereinigte Datei als richtige Tabelle ein
+daten <- read.delim("cleaned_table.txt",
+                    sep = "\t",
+                    header = TRUE,
+                    stringsAsFactors = FALSE,
+                    check.names = FALSE)
+
+```
+
