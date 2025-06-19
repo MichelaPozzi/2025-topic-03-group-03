@@ -49,8 +49,20 @@ RBP_Table = Table_HS_RBP[Table_HS_RBP$Entry_Name %in% rownames(MS_Table_norm), ]
 ```
 
 
+```{r}
+# Tabelle von denen die wir auch als shift klassifiziert haben
+shift_ids = df_ergebnisse$Protein[df_ergebnisse$Kategorie != "kein_shift"]
+Proteine_erkannt = RBP_Table[RBP_Table$Entry_Name %in% shift_ids, ]
+
+
+```
+
+
+
 # Lineare Regression
 
+
+## für alle im Datensatz die gemessen wurden sind
 ```{r}
 # Lineares Modell fitten
 modell <- lm(RBP2GO_Score ~ Mass_kDa, data = RBP_Table)
@@ -62,6 +74,24 @@ summary(modell)
 
 ```{r}
 modell_multi <- lm(RBP2GO_Score ~ Mass_kDa + Length_AA, data = RBP_Table)
+summary(modell_multi)
+
+```
+
+
+
+## für unsere erkannten Proteine
+```{r}
+# Lineares Modell fitten
+modell <- lm(RBP2GO_Score ~ Mass_kDa, data = Proteine_erkannt)
+
+# Zusammenfassung des Modells anzeigen
+summary(modell)
+
+```
+
+```{r}
+modell_multi <- lm(RBP2GO_Score ~ Mass_kDa + Length_AA + pI, data = Proteine_erkannt)
 summary(modell_multi)
 
 ```
