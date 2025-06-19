@@ -8,11 +8,11 @@ date: "2025-06-19"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-
+```{r}
+MS_Table_norm = read.table("MS_Table.norm.csv", header=TRUE, row.names=1, sep = ",")
+```
 
 ```{r}
-
-
 # 1. Datei komplett als Text einlesen
 raw <- readLines("Table_HS_RBP.txt")
 
@@ -43,9 +43,28 @@ Table_HS_RBP = read.delim("cleaned_table.txt",
 # length(gemeinsam) # wie viele sind gleich
 
 
-
 # Extra Tabelle mit nur denen die wir auch haben
 RBP_Table = Table_HS_RBP[Table_HS_RBP$Entry_Name %in% rownames(MS_Table_norm), ]
 
 ```
+
+
+# Lineare Regression
+
+```{r}
+# Lineares Modell fitten
+modell <- lm(RBP2GO_Score ~ Mass_kDa, data = RBP_Table)
+
+# Zusammenfassung des Modells anzeigen
+summary(modell)
+
+```
+
+```{r}
+modell_multi <- lm(RBP2GO_Score ~ Mass_kDa + Length_AA, data = RBP_Table)
+summary(modell_multi)
+
+```
+
+
 
