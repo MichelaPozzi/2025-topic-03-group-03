@@ -524,7 +524,7 @@ df_ergebnisse = df_ergebnisse[df_ergebnisse$Protein != 'KIF1A_HUMAN',]
 ```
 
 
-
+# Kriteienfuktion
  
 ## Funktion für entscheidung über Liste wo das Protein einsortiert wird
 
@@ -546,7 +546,6 @@ wenn das gegeben ist dann 100% ein Shiftendes Protein = RNA-Abhängigkeiten
 
 - 
 
-
 wenn horizontale Differnez = 0 aber (veränderung der Anzahl an peaks):
 -   gain/loss  !! nochmal genauer!!
 - erst verlust dann Gewinn => right
@@ -554,65 +553,10 @@ wenn horizontale Differnez = 0 aber (veränderung der Anzahl an peaks):
 
 
 
-```{r}
-berechne_shift_merkmale <- function(res) {
-  # p-Werte
-  p_signifikant <- any(res$p_Werte < 0.05, na.rm = TRUE)
 
-  # Amplitudensummen
-  amplitude_total <- res$Summierter_Gewinn + res$Summierter_Verlust
+### Möglichkeit 1
 
-  # Anzahl Maxima
-  diff_maxima <- res$Anzahl_RNase_Maxima - res$Anzahl_Kontroll_Maxima
-
-  # Shiftrichtung über Maximadifferenz
-  richtung <- "kein Shift"
-  if (res$Shift_idx > 0) {
-    richtung <- "right"
-  } else if (res$Shift_idx < 0) {
-    richtung <- "left"
-  }
-
-  # Fälle behandeln, wo Shift_idx = 0
-  if (res$Shift_idx == 0) {
-    if (diff_maxima != 0) {
-      # Interpretationslogik bei gleicher Lage aber Peak-Gewinn/Verlust
-      if (res$Summierter_Verlust > 0 && res$Summierter_Gewinn > 0) {
-        richtung <- ifelse(which.max(c(res$Summierter_Gewinn, res$Summierter_Verlust)) == 1, "right", "left")
-      } else if (res$Summierter_Gewinn > 0) {
-        richtung <- "right"
-      } else if (res$Summierter_Verlust > 0) {
-        richtung <- "left"
-      }
-    } else {
-      richtung <- "kein Shift"
-    }
-  }
-
-  # Shift-Score-Kategorie
-  kategorie <- "kein Shift"
-
-  if (!is.na(amplitude_total) && (amplitude_total < -1 || amplitude_total > 1)) {
-    if (p_signifikant) {
-      kategorie <- paste("signifikanter", richtung, "Shift")
-    } else {
-      kategorie <- paste("nicht signifikanter", richtung, "Shift")
-    }
-  }
-
-  # Rückgabe als Liste
-  return(list(
-    Score = amplitude_total,
-    Richtung = richtung,
-    Kategorie = kategorie,
-    p_signifikant = p_signifikant
-  ))
-}
-
-```
-
-
-```{r}
+```{#r}
 klassifiziere_protein_korrekt <- function(row) {
   parse_numeric_vector <- function(x) {
     if (is.na(x) || is.null(x)) return(numeric(0))
@@ -694,6 +638,210 @@ df_ergebnisse$Kategorie <- apply(df_ergebnisse, 1, klassifiziere_protein_korrekt
 
 
 
+### Möglichkeit 2
+
+```{#r}
+kategorisiere_protein_shift <- function(df_ergebnisse) {
+  
+  # Lege neue Spalten an
+  df_ergebnisse$Shift_Score <- NA_real_
+  df_ergebnisse$Shift_Typ   <- NA_character_
+  
+  for (i in seq_len(nrow(df_ergebnisse))) {
+    row <- df_ergebnisse[i, ]
+    
+    ## 1) Grundzahlen ------------------------------
+    shift_idx        <- as.numeric(row$Shift_idx)
+    verlust          <- as.numeric(row$Summierter_Verlust)
+    gewinn           <- as.numeric(row$Summierter_Gewinn)
+    n_ctrl_max       <- as.numeric(row$Anzahl_Kontroll_Maxima)
+    n_rnase_max      <- as.numeric(row$Anzahl_RNase_Maxima)
+    
+    ## 2) Flächen (Strings → numerische Vektoren) ---
+    flaeche_k <- as.numeric(strsplit(as.character(row$Fläche_Kontrolle), ";")[[1]])
+    flaeche_r <- as.numeric(strsplit(as.character(row$Fläche_RNase  ), ";")[[1]])
+    delta_flaeche <- sum(flaeche_r, na.rm = TRUE) - sum(flaeche_k, na.rm = TRUE)
+    
+    ## 3) p-Werte ----------------------------------
+    p_vec_raw <- unlist(strsplit(as.character(row$p_Werte), ";"))
+    # leere Zeichen als NA behandeln
+    p_vec     <- suppressWarnings(as.numeric(p_vec_raw))
+    sig_count <- sum(p_vec < 0.05, na.rm = TRUE)
+    all_na_p  <- all(is.na(p_vec) | p_vec_raw == "")
+    
+    ## 4) Score aufbauen ---------------------------
+    score <- 0
+    if (shift_idx  > 0)                 score <- score + 1
+    if (shift_idx  < 0)                 score <- score - 1
+    if (gewinn     > verlust)           score <- score + 1
+    if (verlust    > gewinn)            score <- score - 1
+    if (n_rnase_max > n_ctrl_max)       score <- score + 1
+    if (n_ctrl_max  > n_rnase_max)      score <- score - 1
+    if (delta_flaeche > 0)              score <- score + 1
+    if (delta_flaeche < 0)              score <- score - 1
+    if (sig_count    > 0)               score <- score - 1   # Kontrolle > RNase
+    if (all_na_p)                       score <- score + 1   # Peak nur in RNase
+    
+    ## 5) Kategorie zuweisen -----------------------
+    shift_typ <- dplyr::case_when(
+      score >=  3 ~ "Strong Right Shift",
+      score >=  1 ~ "Moderate Right Shift",
+      score == 0  ~ "No Clear Shift",
+      score <= -3 ~ "Strong Left Shift",
+      TRUE        ~ "Moderate Left Shift"   # −1 oder −2
+    )
+    
+    ## 6) in DataFrame zurückschreiben -------------
+    df_ergebnisse$Shift_Score[i] <- score
+    df_ergebnisse$Shift_Typ[i]   <- shift_typ
+  }
+  
+  df_ergebnisse
+}
+
+## ---- Anwendung ---------------------------------
+df_ergebnisse <- kategorisiere_protein_shift(df_ergebnisse)
+
+```
+
+
+
+
+### Möglichkeit 3
+
+```{r}
+klassifiziere_protein_shift_streng_v2 <- function(row) {
+  parse_numeric_vector <- function(x) {
+    if (is.na(x) || is.null(x)) return(numeric(0))
+    suppressWarnings(as.numeric(unlist(strsplit(x, ";"))))
+  }
+
+  score <- 0
+  richtung <- NA
+
+  # 1) Shift_idx (bis max 2 Punkte)
+  shift_idx <- suppressWarnings(as.numeric(row[["Shift_idx"]]))
+  if (!is.na(shift_idx)) {
+    if (abs(shift_idx) >= 2) {
+      score <- score + 2
+      richtung <- ifelse(shift_idx > 0, "right", "left")
+    } else if (abs(shift_idx) == 1) {
+      score <- score + 1
+      richtung <- ifelse(shift_idx > 0, "right", "left")
+    }
+  }
+
+  # 2) Maxima Unterschiede (deutlicher Unterschied +2 Punkte, kleiner 1 Punkt)
+  max_kontrolle <- suppressWarnings(as.numeric(row[["Anzahl_Kontroll_Maxima"]]))
+  max_rnase <- suppressWarnings(as.numeric(row[["Anzahl_RNase_Maxima"]]))
+  if (!is.na(max_kontrolle) && !is.na(max_rnase)) {
+    diff_maxima <- max_rnase - max_kontrolle
+    abs_diff <- abs(diff_maxima)
+    if (abs_diff >= 2) {
+      score <- score + 2
+      if (is.na(richtung)) richtung <- ifelse(diff_maxima > 0, "right", "left")
+    } else if (abs_diff == 1) {
+      score <- score + 1
+      if (is.na(richtung)) richtung <- ifelse(diff_maxima > 0, "right", "left")
+    }
+  }
+
+  # 3) p-Werte interpretieren
+  p_vals <- parse_numeric_vector(row[["p_Werte"]])
+  p_vals_vorhanden <- length(p_vals) > 0 && !all(is.na(p_vals))
+  signifikant <- p_vals_vorhanden && any(p_vals < 0.05, na.rm = TRUE)
+
+  # Wenn signifikante p-Werte existieren (Kontrolle > RNase), deutet das gegen rechts shift => Score reduzieren
+  if (signifikant) {
+    score <- score - 2
+  }
+
+  # Falls keine p-Werte (Peak nur in RNase), Hinweis auf Rechts-Shift +1 Punkt
+  if (!p_vals_vorhanden) {
+    score <- score + 1
+    if (is.na(richtung)) richtung <- "right"
+  }
+
+  # 4) Flächen nur werten, wenn signifikante p-Werte vorliegen (sonst ignorieren)
+  if (signifikant) {
+    flaeche_k <- parse_numeric_vector(row[["Fläche_Kontrolle"]])
+    flaeche_r <- parse_numeric_vector(row[["Fläche_RNase"]])
+    delta_flaeche <- sum(flaeche_r, na.rm = TRUE) - sum(flaeche_k, na.rm = TRUE)
+    if (!is.na(delta_flaeche)) {
+      if (abs(delta_flaeche) > 10) {  # Schwellenwert anheben (vorher zu klein)
+        score <- score + 1
+        if (is.na(richtung)) richtung <- ifelse(delta_flaeche > 0, "right", "left")
+      }
+    }
+  }
+
+  # 5) Summierter Gewinn/Verlust (erst werten, wenn p signifikant)
+  if (signifikant) {
+    sum_gewinn <- suppressWarnings(as.numeric(row[["Summierter_Gewinn"]]))
+    sum_verlust <- suppressWarnings(as.numeric(row[["Summierter_Verlust"]]))
+    if (!is.na(sum_gewinn) && !is.na(sum_verlust)) {
+      diff_sum <- sum_gewinn - sum_verlust
+      if (abs(diff_sum) > 10) {  # Auch hier höherer Schwellenwert
+        score <- score + 1
+      }
+    }
+  }
+
+  # 6) Amplitudenpositionen (nur wenn signifikant)
+  if (signifikant) {
+    verlust_vec <- parse_numeric_vector(row[["Verlust_Amplituden"]])
+    gewinn_vec <- parse_numeric_vector(row[["Gewinn_Amplituden"]])
+    if (length(verlust_vec) > 0 && length(gewinn_vec) > 0) {
+      v_idx <- which.max(verlust_vec)
+      g_idx <- which.max(gewinn_vec)
+      if (!is.na(v_idx) && !is.na(g_idx) && v_idx != g_idx) {
+        if (is.na(richtung)) {
+          richtung <- ifelse(g_idx > v_idx, "right", "left")
+        }
+        score <- score + 1
+      }
+    }
+  }
+
+  if (is.na(richtung)) richtung <- "unbekannt"
+
+  # Kategoriezuweisung (nur bei Score >= 4 Shift)
+  if (score >= 5) {
+    kategorie <- paste0("starker_", richtung, "_shift")
+  } else if (score >= 4) {
+    kategorie <- paste0("moderater_", richtung, "_shift")
+  } else {
+    kategorie <- "kein_shift"
+  }
+
+  return(list(Score = score, Kategorie = kategorie))
+}
+
+# Spalten anlegen, falls noch nicht da
+if (!"Shift_Score" %in% colnames(df_ergebnisse)) {
+  df_ergebnisse$Shift_Score <- NA_real_
+}
+if (!"Shift_Kategorie" %in% colnames(df_ergebnisse)) {
+  df_ergebnisse$Shift_Kategorie <- NA_character_
+}
+
+# Wende die Funktion auf jede Zeile des Dataframes an
+ergebnisse_liste <- apply(df_ergebnisse, 1, klassifiziere_protein_shift_streng_v2)
+
+# extrahiere die Ergebnisse in die entsprechenden Spalten
+df_ergebnisse$Shift_Score <- sapply(ergebnisse_liste, function(x) x$Score)
+df_ergebnisse$Shift_Kategorie <- sapply(ergebnisse_liste, function(x) x$Kategorie)
+
+
+save(df_ergebnisse, file = "df_ergebnisse_original.RData")
+
+```
+
+
+
+
+
+### Plot 
 ```{r}
 # Index
 zeile = 'EI2BB_HUMAN'
@@ -716,3 +864,164 @@ legend("topright", legend = c("Ctrl1_norm", "RNAse1_norm"),
        col = c("purple", "darkblue"), lty = 1, cex = 0.8)
 
 ```
+
+
+
+# App für die Manuelle Bestimmung
+
+```{r}
+library(shiny)
+
+# 📥 Daten laden
+if (file.exists("df_ergebnisse_mit_bewertung.RData")) {
+  load("df_ergebnisse_mit_bewertung.RData")
+} else if (file.exists("df_ergebnisse_original.RData")) {
+  load("df_ergebnisse_original.RData")
+} else {
+  stop("❌ Keine Daten gefunden: Bitte stelle sicher, dass df_ergebnisse vorhanden ist.")
+}
+
+# Spalten für Bewertung & Anmerkung hinzufügen, falls noch nicht vorhanden
+if (!"Manuelle_Bewertung" %in% colnames(df_ergebnisse)) {
+  df_ergebnisse$Manuelle_Bewertung <- NA_character_
+}
+if (!"Anmerkung" %in% colnames(df_ergebnisse)) {
+  df_ergebnisse$Anmerkung <- NA_character_
+}
+
+# 🟡 Start bei erstem unbewertetem Protein
+start_index <- which(is.na(df_ergebnisse$Manuelle_Bewertung))[1]
+if (is.na(start_index)) start_index <- 1
+
+ui <- fluidPage(
+  titlePanel("🔬 Manuelle Protein-Bewertung"),
+  sidebarLayout(
+    sidebarPanel(
+      textInput("start_protein_input", "Protein (Name):", value = df_ergebnisse$Protein[start_index]),
+      actionButton("go_start", "Suchen"),
+      br(), br(),
+      actionButton("btn_prev", "← Vorheriges Protein"),
+      actionButton("btn_next", "Nächstes Protein →"),
+      br(), br(),
+      strong(textOutput("protein_position")),  # Anzeige "Protein X von Y"
+      strong("Aktuelles Protein:"),
+      textOutput("protein_name"),
+      br(),
+      radioButtons("bewertung", "Kategorie auswählen:",
+                   choices = c("kein_shift", "moderater_right_shift", "starker_right_shift",
+                               "moderater_left_shift", "starker_left_shift"),
+                   selected = character(0)),
+      textAreaInput("anmerkung", "Anmerkung (optional):", "", rows = 3),
+      actionButton("save", "💾 Bewertung speichern"),
+      br(), br(),
+      strong("Automatische Kategorie:"),
+      textOutput("auto_kat"),
+      br(),
+      actionButton("exit", "❌ App beenden", class = "btn-danger"),
+      br(),
+      textOutput("save_status")
+    ),
+    mainPanel(
+      plotOutput("plot", height = "400px")
+    )
+  )
+)
+
+server <- function(input, output, session) {
+  current <- reactiveVal(start_index)
+  save_status <- reactiveVal("")
+
+  # Springe zum Protein, wenn "go_start" gedrückt wird
+  observeEvent(input$go_start, {
+    protein_name <- input$start_protein_input
+    idx <- which(df_ergebnisse$Protein == protein_name)
+    if (length(idx) == 1) {
+      current(idx)
+      save_status("")
+    } else {
+      showModal(modalDialog(
+        title = "⚠️ Protein nicht gefunden",
+        paste0("Protein '", protein_name, "' nicht gefunden. Bitte genau so eingeben wie in der Tabelle."),
+        easyClose = TRUE
+      ))
+    }
+  })
+
+  # Eingabefelder aktualisieren, wenn sich aktuelles Protein ändert
+  observeEvent(current(), {
+    idx <- current()
+    updateRadioButtons(session, "bewertung",
+                       selected = df_ergebnisse$Manuelle_Bewertung[idx])
+    updateTextAreaInput(session, "anmerkung",
+                        value = df_ergebnisse$Anmerkung[idx])
+    updateTextInput(session, "start_protein_input",
+                    value = df_ergebnisse$Protein[idx])
+    save_status("")
+  })
+
+  observeEvent(input$btn_prev, {
+    idx <- current()
+    if (idx > 1) current(idx - 1)
+  })
+
+  observeEvent(input$btn_next, {
+    idx <- current()
+    if (idx < nrow(df_ergebnisse)) current(idx + 1)
+  })
+
+  output$protein_position <- renderText({
+    paste0("Protein ", current(), " von ", nrow(df_ergebnisse))
+  })
+
+  output$protein_name <- renderText({
+    df_ergebnisse$Protein[current()]
+  })
+
+  output$auto_kat <- renderText({
+    df_ergebnisse$Shift_Kategorie[current()]
+  })
+
+  output$plot <- renderPlot({
+    protein_id <- df_ergebnisse$Protein[current()]
+    ctrl_vals <- as.numeric(Ctrl1_norm[protein_id, ])
+    rnase_vals <- as.numeric(RNAse1_norm[protein_id, ])
+    y_range <- range(c(ctrl_vals, rnase_vals), na.rm = TRUE)
+
+    plot(1:length(ctrl_vals), ctrl_vals, type = "l", col = "purple", ylim = y_range,
+         xlab = "Fraktion", ylab = "Intensität", main = protein_id)
+    lines(1:length(rnase_vals), rnase_vals, col = "darkblue")
+    legend("topright", legend = c("Kontrolle", "RNase"), col = c("purple", "darkblue"), lty = 1)
+  })
+
+  observeEvent(input$save, {
+    idx <- current()
+    df_ergebnisse$Manuelle_Bewertung[idx] <<- input$bewertung
+    df_ergebnisse$Anmerkung[idx] <<- input$anmerkung
+    save(df_ergebnisse, file = "df_ergebnisse_mit_bewertung.RData")
+    save_status("💾 Bewertung gespeichert!")
+    if (idx < nrow(df_ergebnisse)) {
+      current(idx + 1)
+    } else {
+      showModal(modalDialog("🎉 Letztes Protein erreicht!", easyClose = TRUE))
+    }
+  })
+
+  # Speichern beim Schließen der Session (z.B. Browser schließen)
+  session$onSessionEnded(function() {
+    save(df_ergebnisse, file = "df_ergebnisse_mit_bewertung.RData")
+  })
+
+  observeEvent(input$exit, {
+    save(df_ergebnisse, file = "df_ergebnisse_mit_bewertung.RData")
+    stopApp()
+  })
+
+  output$save_status <- renderText({
+    save_status()
+  })
+}
+
+shinyApp(ui, server)
+
+```
+
