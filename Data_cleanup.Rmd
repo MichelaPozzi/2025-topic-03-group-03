@@ -264,16 +264,108 @@ rownames(kor_tabelle) = Fraktionsnamen
 kor_tabelle
 ```
 
-```{r}
-# scatterPlot beispielhaft als Deliverable Reprodzierbarkeit
-Crtl.1.1 = MS_Table_norm[,1]
-Crtl.1.2 = MS_Table_norm[,2]
+## Visualisierung von Reproduzierbarkeit
 
-plot(Crtl.1.1, Crtl.1.2, 
-     pch = 20,
-     xlab = 'Crtl.1.1',
-     ylab = 'Crtl.1.2',)
+```{r}
+library(stringr)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+
+# 1. Daten laden
+ms = MS_Table_norm
+
+# 2. Prüfen
+if (ncol(ms) == 0) stop("Die Tabelle hat keine Spalten. Bitte CSV prüfen.")
+cat("Geladene Spalten:\n")
+print(colnames(ms))
+
+# 3. Spaltennamen parsen
+info <- str_split_fixed(colnames(ms), "_", 3)
+if (ncol(info) < 3) stop("Spaltennamen sind nicht im erwarteten Format 'Fraction_Treatment_Replicate'.")
+
+colnames(info) <- c("Fraction", "Treatment", "Replicate")
+df_info <- data.frame(ColName = colnames(ms),
+                      Fraction = info[, "Fraction"],
+                      Treatment = info[, "Treatment"],
+                      Replicate = info[, "Replicate"],
+                      stringsAsFactors = FALSE)
+
+# 4. Plotbereich vorbereiten
+par(mfrow = c(2, 2), mar = c(4, 4, 2, 1))  # 2x2 Plots pro Seite
+
+# 5. Für jede Gruppe aus Fraktion + Treatment
+groups <- df_info %>% group_by(Fraction, Treatment) %>% group_split()
+
+for(group in groups) {
+  if(nrow(group) < 2) next  # Mind. 2 Replikate nötig für Vergleich
+
+  # Alle 2er-Kombinationen der Replikat-Spalten
+  combis <- combn(group$ColName, 2, simplify = FALSE)
+
+  for(pair in combis) {
+    col1 <- pair[1]
+    col2 <- pair[2]
+    
+    x <- as.numeric(ms[[col1]])
+    y <- as.numeric(ms[[col2]])
+    valid <- which(!is.na(x) & !is.na(y))
+
+    if(length(valid) >= 2) {
+      plot(x[valid], y[valid],
+           pch = 20, cex = 0.6,
+           xlab = col1,
+           ylab = col2,
+           main = paste(group$Fraction[1], group$Treatment[1]))
+      
+      r <- cor(x[valid], y[valid])
+      legend("topleft", legend = paste("R =", round(r, 2)), bty = "n")
+    } else {
+      plot.new()
+      title(main = paste("Nicht genug Daten für", col1, "vs", col2))
+    }
+  }
+}
 ```
+
+```{r}
+col1 <- "Fraction18_Ctrl_Rep1"
+col2 <- "Fraction18_Ctrl_Rep3"
+
+x <- as.numeric(MS_Table_norm[[col1]])
+y <- as.numeric(MS_Table_norm[[col2]])
+
+valid <- complete.cases(x, y)
+
+if (sum(valid) > 0) {
+  # Speicherort und Dateiname anpassen:
+  save_path <- "vergleich_plot.png" 
+  
+  png(save_path, width = 800, height = 800)
+  
+  plot(x[valid], y[valid],
+       pch = 20, cex = 0.6,
+       xlab = col1,
+       ylab = col2,
+       main = paste("Vergleich:", col1, "vs", col2))
+  
+  r <- cor(x[valid], y[valid])
+  legend("topleft", legend = paste("R =", round(r, 2)), bty = "n")
+  
+  dev.off()
+  
+  cat("Plot wurde gespeichert unter:\n", save_path, "\n")
+} else {
+  message("Kein gültiger Datenpunkt für den Plot vorhanden.")
+}
+
+
+
+
+
+```
+
+
 
 
 Skript damit die Tabelle als csv. gespeichert wird > direkt da auf Github > und. in nächstem Dokument dann runterladen
