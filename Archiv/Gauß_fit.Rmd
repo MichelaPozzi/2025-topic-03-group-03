@@ -1,0 +1,233 @@
+---
+title: "Gauß fit"
+output: html_document
+date: "2025-06-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+https://chatgpt.com/share/683b2417-6030-8006-b6d2-479f6f34f641
+
+
+```{r}
+#Gaussian Fit
+#schauen was der kleinste quadratische Abstand zu unseren Daten ist. Wie viele Gauß-Kurven am besten.
+#Oft kommen NA-Werte raus
+#erste Code: RNAse und Kontrolle gleichzeitig
+#zweiter Code: Nur Kontrolle --> kommen andere Werte raus :(
+#```{r}
+n_proteins <- nrow(Mittelwerte_Kontrolle)
+x_vals <- 1:ncol(Mittelwerte_Kontrolle)
+
+# Ergebnis-Container
+best_fit_params_ctrl <- matrix(NA, nrow=n_proteins, ncol=18) # max 6 * (C, mean, sigma)
+best_fit_residuals_ctrl <- rep(NA, n_proteins)
+best_fit_npeaks_ctrl <- rep(NA, n_proteins)
+
+best_fit_params_rnase <- matrix(NA, nrow=n_proteins, ncol=18)
+best_fit_residuals_rnase <- rep(NA, n_proteins)
+best_fit_npeaks_rnase <- rep(NA, n_proteins)
+
+# Hilfsfunktion: Gauß-Kurve; berechnet y-Wert einer Gauß-Kurve; C=Höhe; mean = Zentrum des Peaks; sigma = Breite
+gaussian <- function(x, C, mean, sigma) {
+  C * exp(- (x - mean)^2 / (2 * sigma^2))
+}
+
+# Main Loop
+for (i in 1:n_proteins) {
+  for (condition in c("ctrl", "rnase")) {
+    
+    # Y-Werte holen
+    y <- as.numeric(if (condition == "ctrl") Mittelwerte_Kontrolle[i, ] else Mittelwerte_RNAse[i, ])
+    
+    best_residual <- Inf #als Platzhalter für etrem große Werte
+    best_params <- rep(NA, 18)
+    best_n <- NA
+    
+    for (n_peaks in 1:6) {
+      n_params <- n_peaks * 3 #jede Gauß-Kurve hat drei Parameter
+      start_params <- numeric()
+      
+      for (j in 1:n_peaks) {
+        Cj <- max(y, na.rm=TRUE) / n_peaks #max(y) ist der höchste Wert im Proteinprofil → stellt die maximale Intensität dar.Die Division durch n_peaks verteilt diese Gesamtintensität gleichmäßig auf alle Peaks.!Das ist ein Startwert, nicht das endgültige Ergebnis – die Optimierung sucht später bessere Werte.!
+        meanj <- which.max(y)
+        sigmaj <- 2 #2 ist ein konstanter Startwert, d.h. man nimmt zunächst an, dass der Peak eine gewisse Breite hat.Auch dieser Wert wird später durch das Fit-Verfahren optimiert.
+        start_params <- c(start_params, Cj, meanj, sigmaj) #So entsteht ein vollständiger Parametervektor mit Länge n_peaks × 3, der dann in optim() als Startwert dient.
+      }
+      
+      fit <- try( #Der ganze Block wird mit try(...) umhüllt, um Fehler bei der Optimierung (z. B. wegen schlechter Startwerte) abzufangen. Wenn ein Fehler passiert, wird kein Abbruch erzeugt, sondern einfach fit als Fehlerobjekt gespeichert (silent = TRUE).
+        optim( #Die Funktion optim() versucht, die Parameter für die Summe der Gauß-Kurven so zu optimieren, dass die Differenz zur gemessenen Kurve minimal ist.
+          par = start_params,
+          fn = function(par) {
+            y_fit <- rep(0, length(x_vals)) #y_fit ist die Summe aller Gauß-Kurven, die aktuell mit den Parametern par berechnet werden.
+            for (j in 1:n_peaks) {
+              idx <- (j - 1) * 3 + 1
+              y_fit <- y_fit + gaussian(x_vals, par[idx], par[idx+1], par[idx+2]) #Die Parameter im Vektor par sind in Blöcken von 3 hintereinander gespeichert. gaussian(x_vals, C, mean, sigma) berechnet eine Gauß-Kurve.
+
+            } #Es werden alle n_peaks Kurven berechnet und aufsummiert.
+            sum((y - y_fit)^2) #Fehlersumme; der Abstand zwischen dem Modell (y_fit) und den echten Daten (y)
+          },
+          method = "L-BFGS-B", #Ein robuster Optimierungsalgorithmus, der Grenzen (Bounds) erlaubt.
+          lower = rep(c(0, 1, 0.1), n_peaks), #Grenzen für die Parameter (je Kurve):C ≥ 0 → Amplitude darf nicht negativ sein.mean ≥ 1 → Muss innerhalb der x-Werte liegen.sigma ≥ 0.1 → Verhindert zu enge, instabile Peaks.
+          upper = rep(c(Inf, length(x_vals), Inf), n_peaks) #Obere Grenzen:C darf beliebig groß werden.mean darf maximal die letzte x-Position sein.sigma ist unbegrenzt.
+        ), silent = TRUE
+      )
+      
+      if (!inherits(fit, "try-error") && fit$value < best_residual) { #Prüft, ob bei der Optimierung kein Fehler aufgetreten ist.→ try() gibt ein spezielles Objekt vom Typ "try-error" zurück, wenn etwas schiefläuft.→ Mit !inherits(...) wird sichergestellt, dass der Fit gültig ist.
+        best_residual <- fit$value
+        best_params[1:n_params] <- fit$par
+        best_n <- n_peaks
+      }
+    }
+    
+    # Ergebnisse speichern
+    if (condition == "ctrl") {
+      best_fit_params_ctrl[i, ] <- best_params
+      best_fit_residuals_ctrl[i] <- best_residual
+      best_fit_npeaks_ctrl[i] <- best_n
+    } else {
+      best_fit_params_rnase[i, ] <- best_params
+      best_fit_residuals_rnase[i] <- best_residual
+      best_fit_npeaks_rnase[i] <- best_n
+    }
+  }
+}
+
+# Ergebnisse in DataFrames
+fit_results_ctrl <- data.frame(
+  Protein = rownames(Mittelwerte_Kontrolle),
+  npeaks = best_fit_npeaks_ctrl,
+  residual = best_fit_residuals_ctrl,
+  matrix(best_fit_params_ctrl, ncol = 18, byrow = FALSE)
+)
+
+fit_results_rnase <- data.frame(
+  Protein = rownames(Mittelwerte_RNAse),
+  npeaks = best_fit_npeaks_rnase,
+  residual = best_fit_residuals_rnase,
+  matrix(best_fit_params_rnase, ncol = 18, byrow = FALSE)
+)
+
+# Spaltennamen setzen
+param_names <- unlist(lapply(1:6, function(j) c(paste0("C", j), paste0("mean", j), paste0("sigma", j))))
+colnames(fit_results_ctrl)[4:21] <- param_names
+colnames(fit_results_rnase)[4:21] <- param_names
+
+# Beispielausgabe
+head(fit_results_ctrl)
+head(fit_results_rnase)
+```
+
+
+```{r}
+# Hilfsfunktion: Gauß-Kurve
+gaussian <- function(x, C, mean, sigma) {
+  C * exp(- (x - mean)^2 / (2 * sigma^2))
+}
+
+# x-Werte (Spaltenindex) und Proteinanzahl
+x_vals <- 1:ncol(Mittelwerte_Kontrolle)
+n_proteins <- nrow(Mittelwerte_Kontrolle)
+
+# Ergebnis-Container
+fit_results_ctrl <- data.frame(
+  Protein = rownames(Mittelwerte_Kontrolle),
+  npeaks = NA,
+  residual = NA,
+  matrix(NA, nrow = n_proteins, ncol = 18)
+)
+param_names <- unlist(lapply(1:6, function(j) c(paste0("C", j), paste0("mean", j), paste0("sigma", j))))
+colnames(fit_results_ctrl)[4:21] <- param_names
+
+# Hauptschleife über alle Proteine
+for (i in 1:n_proteins) {
+  y <- as.numeric(Mittelwerte_Kontrolle[i, ])
+  
+  best_residual <- Inf
+  best_params <- rep(NA, 18)
+  best_npeaks <- NA
+  
+  for (n_peaks in 1:6) {
+    n_params <- n_peaks * 3
+    start_params <- rep(c(max(y), which.max(y), 2), n_peaks)
+    
+    fit <- try(
+      optim(
+        par = start_params,
+        fn = function(par) {
+          y_fit <- rep(0, length(x_vals))
+          for (j in 1:n_peaks) {
+            idx <- (j - 1) * 3 + 1
+            y_fit <- y_fit + gaussian(x_vals, par[idx], par[idx+1], par[idx+2])
+          }
+          sum((y - y_fit)^2)
+        },
+        method = "L-BFGS-B",
+        lower = rep(c(0, 1, 0.1), n_peaks),
+        upper = rep(c(Inf, length(x_vals), Inf), n_peaks)
+      ),
+      silent = TRUE
+    )
+    
+    if (!inherits(fit, "try-error") && fit$value < best_residual) {
+      best_residual <- fit$value
+      best_params[1:n_params] <- fit$par
+      best_npeaks <- n_peaks
+    }
+  }
+  
+  # Speichern
+  fit_results_ctrl[i, 2] <- best_npeaks
+  fit_results_ctrl[i, 3] <- best_residual
+  fit_results_ctrl[i, 4:(3 + length(best_params))] <- best_params
+}
+head(fit_results_ctrl)
+```
+
+------------------------------------------------------------------------
+
+### 🟩 **Was im Protokoll gemacht wurde:**
+
+1️⃣ **Teil 2 (Peaks & Fit-Parameter)** Das Gauß-Fitting in Teil 2 wurde auf den **gemittelten Profilen** (also dem Durchschnitt aus je drei Replikaten) gemacht:
+
+-   **1 Mittelwert-Kurve** für Kontrolle (CTRL)
+-   **1 Mittelwert-Kurve** für RNase
+
+➡️ Ziel:
+
+-   **robuste Erkennung von Maxima und Schultern**
+-   „globale“ Fit-Parameter (Amplitude, Lage, Breite) der **Durchschnittskurve** pro Protein und Bedingung
+-   diese Maxima-Positionen dienen als „Startpunkte“ für die Fits in Teil 3
+
+------------------------------------------------------------------------
+
+2️⃣ **Teil 3 (Gaussian Fit auf Einzeldaten)** Hier wurde das **Gauß-Fitting für alle 6 Replikate einzeln** durchgeführt!
+
+-   **3 Replikate für Kontrolle (ctrl1, ctrl2, ctrl3)**
+-   **3 Replikate für RNase (rnase1, rnase2, rnase3)**
+
+➡️ Ziel:
+
+-   **individuelle Fit-Parameter** pro Replikat (z.B. Amplitude = Proteinmenge in diesem Peak in diesem Replikat!)
+-   diese Werte werden später (Teil 5) mit einem **t-Test** zwischen den Bedingungen (CTRL vs. RNase) verglichen.
+
+------------------------------------------------------------------------
+
+### 🟡 **Zusammengefasst:**
+
+| Phase | Datenbasis | Ziel |
+|---------------|------------------|---------------------------------------|
+| **Teil 2** | Mittelwert-Kurve aus 3 Replikaten | Finden von Peaks und deren Startparameter (robust, stabil) |
+| **Teil 3** | 6 Replikat-Kurven (je Protein) | Fit-Parameter (Amplitude, Position, Breite) pro Replikat ermitteln |
+
+------------------------------------------------------------------------
+
+✅ **Also: Das finale Gauß-Fitting für die t-Tests wird an allen 6 Replikaten gemacht!** ❌ **Nicht nur auf den Mittelwerten!** ✅ Aber die Mittelwert-Kurve liefert die „guten Startwerte“, damit die Fits bei den Einzel-Replikaten stabiler sind.
+
+------------------------------------------------------------------------
+
+💡 **Falls du möchtest**, kann ich dir das gerne auch als „Schema“ zeichnen (z.B. Flowchart), wie das Protokoll hier abläuft! 🚀
+
+

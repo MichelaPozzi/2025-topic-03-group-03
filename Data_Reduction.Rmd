@@ -9,7 +9,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
-MS_Table_norm = read.table("MS_Table.norm.csv", header=TRUE, row.names=1, sep = ",")
+MS_Table_norm = read.table("Datensätze/MS_Table.norm.csv", header=TRUE, row.names=1, sep = ",")
 ```
 
 # PCA

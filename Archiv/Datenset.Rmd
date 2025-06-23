@@ -1,0 +1,135 @@
+---
+title: "Datenset"
+output: html_document
+date: "2025-04-30"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+MS_Table <- read.table("RDeeP_HeLa_Interphase.csv", header=TRUE, row.names=1, sep = ";")
+```
+
+```{r}
+Fraktionsnamen = c('Fraction1_Ctrl', 'Fraction1_RNAse', 'Fraction2_Ctrl', 'Fraction2_RNAse','Fraction3_Ctrl', 'Fraction3_RNAse','Fraction4_Ctrl', 'Fraction4_RNAse','Fraction5_Ctrl', 'Fraction5_RNAse','Fraction6_Ctrl', 'Fraction6_RNAse','Fraction7_Ctrl', 'Fraction7_RNAse','Fraction8_Ctrl', 'Fraction8_RNAse','Fraction9_Ctrl', 'Fraction9_RNAse','Fraction10_Ctrl', 'Fraction10_RNAse','Fraction11_Ctrl', 'Fraction11_RNAse','Fraction12_Ctrl', 'Fraction12_RNAse','Fraction13_Ctrl', 'Fraction13_RNAse','Fraction14_Ctrl', 'Fraction14_RNAse','Fraction15_Ctrl', 'Fraction15_RNAse','Fraction16_Ctrl', 'Fraction16_RNAse','Fraction17_Ctrl', 'Fraction17_RNAse','Fraction18_Ctrl', 'Fraction18_RNAse','Fraction19_Ctrl', 'Fraction19_RNAse','Fraction20_Ctrl', 'Fraction20_RNAse','Fraction21_Ctrl', 'Fraction21_RNAse','Fraction22_Ctrl', 'Fraction22_RNAse','Fraction23_Ctrl', 'Fraction23_RNAse','Fraction24_Ctrl', 'Fraction24_RNAse','Fraction25_Ctrl', 'Fraction25_RNAse')
+```
+
+# Beschreibung der Daten
+
+### Dimensionen der Tabelle:
+
+```{r}
+dim(MS_Table)
+```
+
+### Spaltennamen
+
+```{r}
+colnames(MS_Table)
+```
+
+### Reihennamen
+
+```{r}
+rownames(MS_Table)
+```
+
+### Anzahl an fehlenden Werte
+
+```{r}
+sum(is.na(MS_Table))
+```
+
+### Überprüfen ob die Werte alle 'numeric' sind
+
+```{r}
+sum(sapply(MS_Table, is.numeric))
+# 150 > heißt alle spalten sind numerisch
+```
+
+# Normierung
+
+!! Spaltenweise Normierung damit mann jeweils 2 Replikate miteinander vergleichen kann den max Wert pro Spalte und dann !!
+
+```{r}
+
+```
+
+
+```{r}
+# Mittelwert von jeder Spalte
+colMeans(MS_Table)
+```
+
+# Reproduzierbarkeit
+
+Erklärung welche Korrelation wird uns abgeschaut haben:
+
+Pearson oder Spearmean =\> ohne Ränge weil wir ganz viele Nullen haben !! heißt [Pearson]{.underline}
+
+Vorgehen:
+
+```{r}
+# Vektor für Korrelationen zwischen Spalten 1 & 2
+kor_Spalte1_Spalte2 = c()
+for (i in 1:50) {
+  spalten_index = ((i-1) * 3 + 1):(i * 3) # pro loop 3 Spalten zusammen
+  teilmatrix = MS_Table[,spalten_index] # die Untertabellen für jede einzelne Fraktion
+  
+  kor_a = cor(teilmatrix[,1], teilmatrix[,2], method = 'pearson') # Pearsonkorrelation von Spalte 1 & 2
+  kor_Spalte1_Spalte2 = c(kor_Spalte1_Spalte2,kor_a) # an Vektor anhängen
+}
+
+kor_Spalte1_Spalte2
+```
+
+```{r}
+# Vektor für Korrelationen zwischen Spalten 2 & 3
+kor_Spalte2_Spalte3 = c()
+for (i in 1:50) {
+  spalten_index = ((i-1) * 3 + 1):(i * 3) # pro loop 3 Spalten zusammen
+  teilmatrix = MS_Table[,spalten_index] # die Untertabellen für jede einzelne Fraktion
+  
+  kor_b = cor(teilmatrix[,2], teilmatrix[,3], method = 'pearson') # Pearsonkorrelation von Spalte 2 & 3
+  kor_Spalte2_Spalte3 = c(kor_Spalte2_Spalte3,kor_b) # an Vektor anhängen
+}
+
+kor_Spalte2_Spalte3
+```
+
+```{r}
+# Vektor für Korrelationen zwischen Spalten 1 & 3
+kor_Spalte1_Spalte3 = c()
+for (i in 1:50) {
+  spalten_index = ((i-1) * 3 + 1):(i * 3) # pro loop 3 Spalten zusammen
+  teilmatrix = MS_Table[,spalten_index] # die Untertabellen für jede einzelne Fraktion
+  
+  kor_c = cor(teilmatrix[,2], teilmatrix[,3], method = 'pearson') # Pearsonkorrelation von Spalte 1 & 3
+  kor_Spalte1_Spalte3 = c(kor_Spalte1_Spalte3,kor_c) # an Vektor anhängen
+}
+
+kor_Spalte1_Spalte3
+```
+
+```{r}
+kor_tabelle = cbind(kor_Spalte1_Spalte2, kor_Spalte2_Spalte3, kor_Spalte1_Spalte3)
+rownames(kor_tabelle) = Fraktionsnamen
+kor_tabelle
+```
+
+r-Wert als Grenze: ... ob zwischen zwei Replikaten zu große Varianz besteht
+
+mind. 0,9 ???
+
+```{r}
+# scatterplot beispielhaft für 2 Replikate der gleichen Fraktion des gleichen treatments als Deliverable für Reproduzierbarkeit
+Crtl.1.1 = MS_Table[,1]
+Crtl.1.2 = MS_Table[,2]
+
+plot(con.1.1, con.1.2, 
+     pch = 20,
+     xlab = 'Crtl.1.1',
+     ylab = 'Crtl.1.2',)
+```

@@ -9,12 +9,12 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
-MS_Table_norm = read.table("MS_Table.norm.csv", header=TRUE, row.names=1, sep = ",")
+MS_Table_norm = read.table("Datensätze/MS_Table.norm.csv", header=TRUE, row.names=1, sep = ",")
 ```
 
 ```{r}
 # 1. Datei komplett als Text einlesen
-raw <- readLines("Table_HS_RBP.txt")
+raw <- readLines("Datensätze/Table_HS_RBP.txt")
 
 # 2. Ab Zeile 7 extrahieren (Header + Daten)
 raw_data <- raw[7:length(raw)]
