@@ -96,5 +96,73 @@ summary(modell_multi)
 
 ```
 
+# Lineare Regression: Aussage über Masse,Länge, pI über shift_score
+```{r}
+# physikalische Eigenschaften der Proteine, die übereinstimmen (RBP_Table), in df ergebnisse hinzufügen für die Regression
+phys_eigenschaften = RBP_Table[, c("Entry_Name", "Mass_kDa", "Length_AA", "pI")]
 
+df_ergenisse_phys = merge(df_ergebnisse, phys_eigenschaften, 
+                   by.x = "Protein", 
+                   by.y = "Entry_Name", all = FALSE)
+```
+
+```{r}
+# Regression mit den physikalischen Eigenschaften bezogen auf den von uns bestimmten shift_score
+model = lm(Shift_Score ~ Mass_kDa + Length_AA + pI, data = df_ergenisse_phys)
+summary(model)
+# Modell hat keinen guten R2 Wert also sind die 3 eigenschaften nicht perfekt, um den score vorauszusagen
+```
+
+```{r}
+df_ergenisse_phys$fitted_shift = predict(model, newdata = df_ergenisse_phys)
+```
+
+
+```{r}
+plot(df_ergenisse_phys$Shift_Score, df_ergenisse_phys$fitted_shift,
+     xlab = "Gemessener Shift Score",
+     ylab = "Vorhergesagter (fitted) Shift Score",
+     main = "Vergleich gemessener vs. vorhergesagter Shift Scores")
+abline(a=0, b=1, col="red")  # ideale Gerade y=x
+# gemessener und vorausgesagter shift stimmen nicht wirklch überein - Info über die eigenschaften reicht eigentlich nicht aus, um shift_score zu bestimmen
+```
+
+```{r}
+# Variablen auswählen und fehlende Werte entfernen
+vars = c("Mass_kDa", "Length_AA", "pI", "fitted_shift")
+df_clust = df_ergenisse_phys[complete.cases(df_ergenisse_phys[, vars]), ]
+
+# Clustering vorbereiten (Skalierung wichtig!)
+scaled_data = scale(df_clust[, vars])
+
+# K-Means Clustering 
+set.seed(42)  # für Reproduzierbarkeit
+kmeans_result = kmeans(scaled_data, centers = 5)
+
+# Cluster-Zuweisung speichern
+df_clust$regression_cluster = factor(kmeans_result$cluster)
+```
+
+
+```{r}
+# Ergebnisse der Regression clustern
+# PCA durchführen
+pca = prcomp(scaled_data, scale. = FALSE)  
+
+# Daten für Plot
+plot_df = data.frame(PC1 = pca$x[,1],
+                      PC2 = pca$x[,2],
+                      Cluster = df_clust$regression_cluster)
+
+# Plot
+library(ggplot2)
+
+ggplot(plot_df, aes(x = PC1, y = PC2, color = Cluster)) +
+  geom_point(size = 2, alpha = 0.7) +
+  theme_minimal() +
+  labs(title = "Cluster auf Basis von Regression + Eigenschaften",
+       x = paste0("PC1 (", round(summary(pca)$importance[2,1]*100,1), "%)"),
+       y = paste0("PC2 (", round(summary(pca)$importance[2,2]*100,1), "%)")) +
+  scale_color_brewer(palette = "Set2")
+```
 
