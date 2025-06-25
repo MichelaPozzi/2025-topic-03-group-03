@@ -136,7 +136,7 @@ Proteine_erkannt = RBP_Table[RBP_Table$Entry_Name %in% shift_ids, ]
 ## für alle im Datensatz die gemessen wurden sind
 ```{r}
 # Lineares Modell fitten
-modell <- lm(RBP2GO_Score ~ Mass_kDa, data = RBP_Table)
+modell <- lm(RBP2GO_Score ~ pI, data = RBP_Table)
 
 # Zusammenfassung des Modells anzeigen
 summary(modell)
@@ -148,6 +148,7 @@ modell_multi <- lm(RBP2GO_Score ~ Mass_kDa + Length_AA, data = RBP_Table)
 summary(modell_multi)
 
 ```
+
 
 
 
@@ -170,27 +171,32 @@ summary(modell_multi)
 # Lineare Regression: Aussage über Masse,Länge, pI über shift_score
 ```{r}
 # physikalische Eigenschaften der Proteine, die übereinstimmen (RBP_Table), in df ergebnisse hinzufügen für die Regression
-phys_eigenschaften = RBP_Table[, c("Entry_Name", "Mass_kDa", "Length_AA", "pI")]
+phys_eigenschaften = combined_table[, c("Entry_Name", "Mass_kDa", "Length_AA", "pI", "Kategorie")]
 
-df_ergenisse_phys = merge(df_ergebnisse, phys_eigenschaften, 
+df_ergebnisse_phys = merge(df_ergebnisse, phys_eigenschaften, 
                    by.x = "Protein", 
                    by.y = "Entry_Name", all = FALSE)
 ```
 
 ```{r}
 # Regression mit den physikalischen Eigenschaften bezogen auf den von uns bestimmten shift_score
-model = lm(Shift_Score ~ Mass_kDa + Length_AA + pI, data = df_ergenisse_phys)
+model = lm(Shift_Score ~ Mass_kDa + Length_AA + pI, data = df_ergebnisse_phys)
 summary(model)
 # Modell hat keinen guten R2 Wert also sind die 3 eigenschaften nicht perfekt, um den score vorauszusagen
 ```
 
 ```{r}
-df_ergenisse_phys$fitted_shift = predict(model, newdata = df_ergenisse_phys)
+df_ergebnisse_phys$fitted_shift = predict(model, newdata = df_ergebnisse_phys)
+```
+
+```{r}
+summary(df_ergebnisse_phys$fitted_shift)
+range(df_ergebnisse_phys$fitted_shift, na.rm = TRUE)
 ```
 
 
 ```{r}
-plot(df_ergenisse_phys$Shift_Score, df_ergenisse_phys$fitted_shift,
+plot(df_ergebnisse_phys$Shift_Score, df_ergebnisse_phys$fittet_shift,
      xlab = "Gemessener Shift Score",
      ylab = "Vorhergesagter (fitted) Shift Score",
      main = "Vergleich gemessener vs. vorhergesagter Shift Scores")
@@ -201,7 +207,7 @@ abline(a=0, b=1, col="red")  # ideale Gerade y=x
 ```{r}
 # Variablen auswählen und fehlende Werte entfernen
 vars = c("Mass_kDa", "Length_AA", "pI", "fitted_shift")
-df_clust = df_ergenisse_phys[complete.cases(df_ergenisse_phys[, vars]), ]
+df_clust = df_ergebnisse_phys[complete.cases(df_ergebnisse_phys[, vars]), ]
 
 # Clustering vorbereiten (Skalierung wichtig!)
 scaled_data = scale(df_clust[, vars])
@@ -225,6 +231,7 @@ plot_df = data.frame(PC1 = pca$x[,1],
                       PC2 = pca$x[,2],
                       Cluster = df_clust$regression_cluster)
 
+
 # Plot
 library(ggplot2)
 
@@ -236,4 +243,113 @@ ggplot(plot_df, aes(x = PC1, y = PC2, color = Cluster)) +
        y = paste0("PC2 (", round(summary(pca)$importance[2,2]*100,1), "%)")) +
   scale_color_brewer(palette = "Set2")
 ```
+
+```{r}
+# ist noch falsch 
+cluster_kategorie <- merge(df_clust, df_ergebnisse_phys[, c("Protein", "Shift_Score")],
+                   by = "Protein", all.x = TRUE)
+ggplot(plot_df, aes(x = PC1, y = PC2, color = Cluster)) +
+  geom_point(size = 2, alpha = 0.7) +
+  facet_wrap(~ cluster_kategorie$Shift_Kategorie) +
+  theme_minimal(base_size = 13) +
+  labs(
+    title = "PCA-Clustering facettiert nach biologischer Shift-Kategorie",
+    x = paste0("PC1 (", round(summary(pca)$importance[2,1]*100,1), "%)"),
+    y = paste0("PC2 (", round(summary(pca)$importance[2,2]*100,1), "%)")
+  ) +
+  scale_color_brewer(palette = "Set2")
+
+```
+
+
+```{r}
+# hier geht verbesserung vom ersten clustering weiter
+# Extremwerte nach PC1 oder PC2
+plot_df[which.max(abs(plot_df$PC1)), ]  # größter Ausreißer in PC1
+plot_df[which.max(abs(plot_df$PC2)), ]  # größter Ausreißer in PC2
+```
+
+```{r}
+outlier_index <- which.max(abs(plot_df$PC1))  # oder PC2, je nachdem
+df_clust_no_outlier <- df_clust[-outlier_index, ]
+scaled_data_no_outlier <- scale(df_clust_no_outlier[, vars])
+set.seed(42)
+kmeans_result <- kmeans(scaled_data_no_outlier, centers = 6)
+
+# Clusterzuweisung speichern
+df_clust_no_outlier$regression_cluster <- factor(kmeans_result$cluster)
+pca_no_outlier <- prcomp(scaled_data_no_outlier, scale. = FALSE)
+
+plot_df_clean <- data.frame(
+  PC1 = pca_no_outlier$x[,1],
+  PC2 = pca_no_outlier$x[,2],
+  Cluster = df_clust_no_outlier$regression_cluster
+)
+library(ggplot2)
+
+ggplot(plot_df_clean, aes(x = PC1, y = PC2, color = Cluster)) +
+  geom_point(size = 2, alpha = 0.8) +
+  theme_minimal() +
+  labs(title = "Cluster ohne Ausreißer im PCA-Raum")
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(df_clust, aes(x = Shift_Kategorie, y = pI)) +
+  geom_violin(fill = "skyblue", alpha = 0.4) +
+  geom_boxplot(width = 0.2, outlier.shape = NA) +
+  theme_minimal() +
+  labs(title = "pI nach Shift-Kategorie", x = "Shift-Kategorie", y = "pI")
+
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(df_clust, aes(x = Shift_Kategorie, y = Mass_kDa)) +
+  geom_violin(fill = "skyblue", alpha = 0.4) +
+  geom_boxplot(width = 0.2, outlier.shape = NA) +
+  theme_minimal() +
+  labs(title = "Masse nach Shift-Kategorie", x = "Shift-Kategorie", y = "Masse")
+
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(df_clust, aes(x = Shift_Kategorie, y = Length_AA)) +
+  geom_violin(fill = "skyblue", alpha = 0.4) +
+  geom_boxplot(width = 0.2, outlier.shape = NA) +
+  theme_minimal() +
+  labs(title = "Länge nach Shift-Kategorie", x = "Shift-Kategorie", y = "Länge")
+
+```
+
+```{r}
+# RBP Zuordnung basisierend auf unseren scores
+df_ergebnisse_phys$RBP_nach_Score <- ifelse(df_ergebnisse_phys$Shift_Kategorie == "kein_shift", "non-RBP", "RBP")
+df_ergebnisse_phys$RBP_nach_Score <- factor(df_ergebnisse_phys$rbp_status, levels = c("non-RBP", "RBP"))
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# Anzahl pro Kategorie + RBP-Status
+df_summary <- df_ergebnisse_phys %>%
+  group_by(Shift_Kategorie, RBP_nach_Score) %>%
+  summarise(n = n(), .groups = "drop")
+
+# Barplot
+ggplot(df_summary, aes(x = Shift_Kategorie, y = n, fill = RBP_nach_Score)) +
+  geom_col() +
+  scale_fill_manual(values = c("RBP" = "#0072B2", "non-RBP" = "#E69F00")) +
+  labs(title = "Anzahl an Proteinen pro Shift-Kategorie",
+       x = "Shift-Kategorie", y = "Anzahl Proteine", fill = "Protein-Typ") +
+  theme_minimal(base_size = 13) +
+  theme(axis.text.x = element_text(angle = 25, hjust = 1))
+
+```
+
 
