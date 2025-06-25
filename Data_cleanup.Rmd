@@ -203,6 +203,7 @@ colnames(MS_Table_norm) = colnames(MS_Table)
 rownames(MS_Table_norm) = rownames(MS_Table)
 
 MS_Table_norm
+
 ```
 
 
@@ -266,6 +267,90 @@ kor_tabelle
 
 ## Visualisierung von Reproduzierbarkeit
 
+### Boxplot für die Tabelle
+```{r}
+kor_long <- data.frame(
+  Fraktion = rep(Fraktionsnamen, 3),
+  Korrelation = c(kor_Spalte1_Spalte2, kor_Spalte2_Spalte3, kor_Spalte1_Spalte3),
+  Paar = rep(c("Replikate 1&2", "Replikate 2&3", "Replikate 1&3"), each = 50)
+)
+
+Boxplot_Korrelationswerte <- ggplot(kor_long, aes(x = Paar, y = Korrelation, fill = Paar)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(title = "Reproduzierbarkeit der Replikate (Pearson-Korrelation)",
+       x = "Paar von Replikaten",
+       y = "Korrelationskoeffizient") +
+  theme(legend.position = "none")
+
+print(Boxplot_Korrelationswerte)
+```
+
+
+```{r}
+p_violin <- ggplot(kor_long, aes(x = Paar, y = Korrelation, fill = Paar)) +
+  geom_violin(trim = FALSE) +
+  geom_boxplot(width = 0.1, fill = "white") +  # Boxplot als Overlay
+  theme_minimal() +
+  labs(title = "Verteilung der Pearson-Korrelationen (Violinplot)",
+       x = "Paar von Replikaten",
+       y = "Korrelationskoeffizient") +
+  theme(legend.position = "none")
+
+print(p_violin)
+
+```
+```{r}
+p_dot <- ggplot(kor_long, aes(x = Paar, y = Korrelation, color = Paar)) +
+  geom_jitter(width = 0.2, alpha = 0.7) +
+  theme_minimal() +
+  labs(title = "Einzelne Korrelationswerte (Jitter-Plot)",
+       x = "Paar von Replikaten",
+       y = "Korrelationskoeffizient") +
+  theme(legend.position = "none")
+
+print(p_dot)
+
+```
+```{r}
+library(ggplot2)
+library(viridis)  # für viridis Farbskala, falls installiert
+
+p_heatmap_besser <- ggplot(kor_long, aes(x = Paar, y = Fraktion, fill = Korrelation)) +
+  geom_tile() +
+  #scale_fill_gradient(low = "white", high = "red", limits = c(0.93, 1), oob = scales::squish) +
+  # Oder mit viridis:
+  scale_fill_viridis_c(limits = c(0.94, 1), option = "D", oob = scales::squish) +
+  theme_minimal() +
+  labs(title = "Heatmap der Korrelationen pro Fraktion (angepasste Farbskala)",
+       x = "Paar von Replikaten",
+       y = "Fraktion") +
+  theme(axis.text.y = element_text(size = 6))
+
+print(p_heatmap_besser)
+
+
+```
+
+```{r}
+install.packages("ggbeeswarm")
+library(ggbeeswarm)
+
+p_beeswarm <- ggplot(kor_long, aes(x = Paar, y = Korrelation, color = Paar)) +
+  geom_beeswarm(cex = 2, alpha = 0.7) +
+  theme_minimal() +
+  labs(title = "Beeswarm-Plot der Korrelationen",
+       x = "Paar von Replikaten",
+       y = "Korrelationskoeffizient") +
+  theme(legend.position = "none")
+
+print(p_beeswarm)
+
+```
+
+
+
+### Scatterplots für alle Korealationen einzelnd
 ```{r}
 library(stringr)
 library(dplyr)
@@ -328,7 +413,31 @@ for(group in groups) {
 }
 ```
 
+
+### Beispiel-plot für den Median-R-Wert
+
+
 ```{r}
+median_r <- median(as.vector(kor_tabelle), na.rm = TRUE)
+
+# Abstand aller Werte zum Median berechnen
+diffs <- abs(kor_tabelle - median_r)
+
+# Position des Werts mit minimaler Abweichung zum Median finden
+min_pos <- which(diffs == min(diffs, na.rm = TRUE), arr.ind = TRUE)
+
+median_fraktion <- rownames(kor_tabelle)[min_pos[1]]
+median_paar <- colnames(kor_tabelle)[min_pos[2]]
+
+cat("Medianer Korrelationswert:", median_r, "\n")
+cat("Nächster Korrelationswert in Tabelle:", kor_tabelle[min_pos], "\n")
+cat("Plot erstellen für Fraktion:", median_fraktion, "und Paar:", median_paar, "\n")
+
+```
+
+
+```{#r}
+
 col1 <- "Fraction18_Ctrl_Rep1"
 col2 <- "Fraction18_Ctrl_Rep3"
 
@@ -360,11 +469,53 @@ if (sum(valid) > 0) {
 }
 
 
-
-
-
 ```
 
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+plot_correlation <- function(data, col1, col2, color = "darkred", save_path = NULL) {
+  # Daten auf vollständige Fälle filtern
+  df <- data %>%
+    select(all_of(c(col1, col2))) %>%
+    mutate(Protein = rownames(data)) %>%
+    pivot_longer(-Protein, names_to = "Sample", values_to = "Value") %>%
+    pivot_wider(names_from = Sample, values_from = Value) %>%
+    filter(complete.cases(.))
+  
+  # Korrelation berechnen
+  r <- cor(df[[col1]], df[[col2]])
+  r_text <- paste0("R = ", round(r, 2))
+  
+  # ggplot erstellen
+  p <- ggplot(df, aes_string(x = col1, y = col2)) +
+    geom_point(alpha = 0.6, color = color) +
+    geom_smooth(method = "lm", se = FALSE, color = "lavender") +
+    labs(title = paste("Scatterplot:", col1, "vs", col2),
+         x = col1,
+         y = col2) +
+    theme_minimal() +
+    annotate("text", x = min(df[[col1]], na.rm = TRUE), 
+             y = max(df[[col2]], na.rm = TRUE), 
+             label = r_text, hjust = 0, vjust = 1, size = 10, color = color)
+  
+  # Plot anzeigen
+  print(p)
+  
+  # Optional speichern
+  if (!is.null(save_path)) {
+    ggsave(filename = save_path, plot = p, width = 8, height = 8)
+    cat("Plot wurde gespeichert unter:\n", save_path, "\n")
+  }
+}
+
+# Beispielaufruf:
+plot_correlation(MS_Table_norm, "Fraction18_Ctrl_Rep1", "Fraction18_Ctrl_Rep3", color = "black", save_path = "Postervisuals/vergleich_plot_ggplot.png")
+
+```
 
 
 
