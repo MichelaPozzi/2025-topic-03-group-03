@@ -12,6 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 MS_Table_norm = read.table("Datensätze/MS_Table.norm.csv", header=TRUE, row.names=1, sep = ",")
 ```
 
+### Einlesen von Table_RBPs
 ```{r}
 # 1. Datei komplett als Text einlesen
 raw <- readLines("Datensätze/Table_HS_RBP.txt")
@@ -34,6 +35,29 @@ Table_HS_RBP = read.delim("cleaned_table.txt",
 
 ```
 
+### Einlesen von Table_NO-RBPs
+```{r}
+# 1. Datei komplett als Text einlesen
+raw <- readLines("Datensätze/Table_HS_Non_RBP.txt")
+
+# 2. Ab Zeile 7 extrahieren (Header + Daten)
+raw_data <- raw[7:length(raw)]
+
+# 3. Entferne alle \" (Backslash-Anführungszeichen)
+clean_data <- gsub('\\"', '', raw_data)
+
+# 4. Schreibe die bereinigten Zeilen in eine temporäre Datei
+writeLines(clean_data, "cleaned_table.txt")
+
+# 5. Lese die bereinigte Datei als richtige Tabelle ein
+Table_HS_NO_RBP = read.delim("cleaned_table.txt",
+                    sep = "\t",
+                    header = TRUE,
+                    stringsAsFactors = FALSE,
+                    check.names = FALSE)
+
+```
+
 
 ```{r}
 # Vergleich wie viele in den beiden Tabellen sind -> brauchen wir eigentlich eh nicht mehr
@@ -47,6 +71,53 @@ Table_HS_RBP = read.delim("cleaned_table.txt",
 RBP_Table = Table_HS_RBP[Table_HS_RBP$Entry_Name %in% rownames(MS_Table_norm), ]
 
 ```
+
+```{r}
+# Vergleich wie viele in den beiden Tabellen sind -> brauchen wir eigentlich eh nicht mehr
+
+# gemeinsam = intersect(Table_HS_NO_RBP$Entry_Name, rownames(MS_Table_norm))
+# gemeinsam # welche sind das 
+# length(gemeinsam) # wie viele sind gleich
+
+
+# Extra Tabelle mit nur denen die wir auch haben
+No_RBP_Table = Table_HS_NO_RBP[Table_HS_NO_RBP$Entry_Name %in% rownames(MS_Table_norm), ]
+
+```
+
+
+```{r}
+# 1. Alle Spaltennamen aus der RBP-Tabelle
+rbp_cols <- colnames(Table_HS_RBP)
+
+# 2. Welche Spalten davon existieren in der NO_RBP-Tabelle?
+existing_no_rbp_cols <- intersect(rbp_cols, colnames(Table_HS_NO_RBP))
+
+# 3. Erzeuge NO_RBP-Tabelle mit gleichen Spalten, fehlende füllen wir mit NA
+No_RBP_Table_aligned <- Table_HS_NO_RBP[, existing_no_rbp_cols]
+
+# 4. Füge die fehlenden Spalten mit NA hinzu
+missing_cols <- setdiff(rbp_cols, existing_no_rbp_cols)
+for (col in missing_cols) {
+  No_RBP_Table_aligned[[col]] <- NA
+}
+
+# 5. Bringe die Spalten in dieselbe Reihenfolge wie in RBP-Tabelle
+No_RBP_Table_aligned <- No_RBP_Table_aligned[, rbp_cols]
+
+# 6. Füge eine Kategorie-Spalte hinzu
+Table_HS_RBP$Kategorie <- "RBP"
+No_RBP_Table_aligned$Kategorie <- "NO_RBP"
+
+# 7. Gleiche Einträge wie in MS_Table_norm behalten
+RBP_Table <- Table_HS_RBP[Table_HS_RBP$Entry_Name %in% rownames(MS_Table_norm), ]
+No_RBP_Table <- No_RBP_Table_aligned[No_RBP_Table_aligned$Entry_Name %in% rownames(MS_Table_norm), ]
+
+# 8. Vereinige die beiden Tabellen
+combined_table <- rbind(RBP_Table, No_RBP_Table)
+
+```
+
 
 
 ```{r}
