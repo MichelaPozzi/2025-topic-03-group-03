@@ -207,6 +207,111 @@ MS_Table_norm
 ```
 
 
+## Visualisierung der Normierung
+
+```{r}
+# Benötigte Pakete laden
+library(ggplot2)
+library(reshape2)
+
+# 1. Mittelwerte über alle Proteine pro Sample (Spalte)
+frak_mittel_raw <- colMeans(MS_Table, na.rm = TRUE)
+frak_mittel_mittel <- colMeans(MS_Table_norm_mittel, na.rm = TRUE)
+frak_mittel_sw <- colMeans(MS_Table_norm, na.rm = TRUE)
+
+# 2. Dataframes für ggplot vorbereiten
+
+prepare_boxplot_df <- function(mittelwerte_vector) {
+  df <- data.frame(Sample = names(mittelwerte_vector), Value = mittelwerte_vector)
+  df$Fraction <- sub("_.*", "", df$Sample)  # z.B. "Fraction1"
+  df$Condition <- ifelse(grepl("Ctrl", df$Sample), "Control", "RNase")
+  return(df)
+}
+
+df_raw <- prepare_boxplot_df(frak_mittel_raw)
+df_mittel <- prepare_boxplot_df(frak_mittel_mittel)
+df_sw <- prepare_boxplot_df(frak_mittel_sw)
+
+# 3. Boxplot-Funktion
+
+plot_box <- function(df, title, y_label) {
+  ggplot(df, aes(x = Fraction, y = Value, fill = Condition)) +
+    geom_boxplot(outlier.size = 0.5) +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 90, hjust = 1, size = 7),
+      legend.position = "right"
+    ) +
+    labs(title = title, y = y_label, x = "Fraktion")
+}
+
+# 4. Plotten
+
+p1 <- plot_box(df_raw, "Boxplot vor Normalisierung", "Signalintensität")
+p2 <- plot_box(df_mittel, "Boxplot nach Mittelwert-Normalisierung", "Normierte Intensität")
+p3 <- plot_box(df_sw, "Boxplot nach Sliding Window (Summe = 100%)", "Relative Intensität [%]")
+
+# 5. Anzeigen
+print(p1)
+print(p2)
+print(p3)
+
+
+```
+
+
+
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# Mittelwerte berechnen
+frak_mittel_raw <- colMeans(MS_Table, na.rm = TRUE)
+frak_mittel_norm <- colMeans(MS_Table_norm_mittel, na.rm = TRUE)
+
+# Funktion zur Vorbereitung des Dataframes
+prepare_boxplot_df <- function(mittelwerte_vector, norm_status) {
+  df <- data.frame(Sample = names(mittelwerte_vector), Value = mittelwerte_vector)
+  df$Fraction <- sub("Fraction(\\d+)_.*", "\\1", df$Sample)
+  df$Fraction <- factor(df$Fraction, levels = as.character(1:25)) # korrekte Reihenfolge
+  df$Condition <- ifelse(grepl("Ctrl", df$Sample), "Control", "RNase")
+  df$Normalization <- norm_status
+  return(df)
+}
+
+# Beide Tabellen vorbereiten und kombinieren
+df_raw <- prepare_boxplot_df(frak_mittel_raw, "Vor")
+df_norm <- prepare_boxplot_df(frak_mittel_norm, "Nach")
+df_all <- rbind(df_raw, df_norm)
+
+# Neue kombinierte Gruppe: Fraktion + Condition
+df_all$Group <- paste(df_all$Fraction, df_all$Condition, sep = "_")
+df_all$Group <- factor(df_all$Group, levels = unique(df_all$Group))
+
+# Plot: Vor und Nach als separate Farben innerhalb jeder Gruppe
+ggplot(df_all, aes(x = Group, y = Value, fill = Normalization)) +
+  geom_boxplot(outlier.size = 0.5, position = position_dodge(width = 0.75)) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8),
+        legend.position = "right") +
+  labs(title = "Boxplots vor und nach Normalisierung",
+       x = "Fraktion & Bedingung",
+       y = "Signalintensität",
+       fill = "Status")
+
+
+ggplot(df_all, aes(x = Fraction, y = Value, fill = Condition)) +
+  geom_boxplot(outlier.size = 0.5) +
+  facet_wrap(~Normalization, ncol = 2) +  # nebeneinander
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 8)) +
+  labs(title = "Vergleich: Vor vs. Nach Normalisierung",
+       x = "Fraktion", y = "Intensität", fill = "Bedingung")
+
+```
+
+
 
 
 # Reproduzierbarkeit
@@ -283,11 +388,6 @@ Boxplot_Korrelationswerte <- ggplot(kor_long, aes(x = Paar, y = Korrelation, fil
        y = "Korrelationskoeffizient") +
   theme(legend.position = "none")
 
-print(Boxplot_Korrelationswerte)
-```
-
-
-```{r}
 p_violin <- ggplot(kor_long, aes(x = Paar, y = Korrelation, fill = Paar)) +
   geom_violin(trim = FALSE) +
   geom_boxplot(width = 0.1, fill = "white") +  # Boxplot als Overlay
@@ -298,53 +398,6 @@ p_violin <- ggplot(kor_long, aes(x = Paar, y = Korrelation, fill = Paar)) +
   theme(legend.position = "none")
 
 print(p_violin)
-
-```
-```{r}
-p_dot <- ggplot(kor_long, aes(x = Paar, y = Korrelation, color = Paar)) +
-  geom_jitter(width = 0.2, alpha = 0.7) +
-  theme_minimal() +
-  labs(title = "Einzelne Korrelationswerte (Jitter-Plot)",
-       x = "Paar von Replikaten",
-       y = "Korrelationskoeffizient") +
-  theme(legend.position = "none")
-
-print(p_dot)
-
-```
-```{r}
-library(ggplot2)
-library(viridis)  # für viridis Farbskala, falls installiert
-
-p_heatmap_besser <- ggplot(kor_long, aes(x = Paar, y = Fraktion, fill = Korrelation)) +
-  geom_tile() +
-  #scale_fill_gradient(low = "white", high = "red", limits = c(0.93, 1), oob = scales::squish) +
-  # Oder mit viridis:
-  scale_fill_viridis_c(limits = c(0.94, 1), option = "D", oob = scales::squish) +
-  theme_minimal() +
-  labs(title = "Heatmap der Korrelationen pro Fraktion (angepasste Farbskala)",
-       x = "Paar von Replikaten",
-       y = "Fraktion") +
-  theme(axis.text.y = element_text(size = 6))
-
-print(p_heatmap_besser)
-
-
-```
-
-```{r}
-install.packages("ggbeeswarm")
-library(ggbeeswarm)
-
-p_beeswarm <- ggplot(kor_long, aes(x = Paar, y = Korrelation, color = Paar)) +
-  geom_beeswarm(cex = 2, alpha = 0.7) +
-  theme_minimal() +
-  labs(title = "Beeswarm-Plot der Korrelationen",
-       x = "Paar von Replikaten",
-       y = "Korrelationskoeffizient") +
-  theme(legend.position = "none")
-
-print(p_beeswarm)
 
 ```
 
