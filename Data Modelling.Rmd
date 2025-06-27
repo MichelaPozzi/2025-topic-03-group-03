@@ -336,6 +336,36 @@ df_ergebnisse_phys$RBP_nach_Score <- factor(df_ergebnisse_phys$rbp_status, level
 library(ggplot2)
 library(dplyr)
 
+# PCA Ergebnis-Datenframe erstellen
+plot_df <- data.frame(
+  PC1 = pca$x[,1],
+  PC2 = pca$x[,2]
+)
+
+# Cluster- und Kategorie-Info aus df_clust hinzufügen
+plot_df <- plot_df %>%
+  mutate(
+    Cluster = df_clust$regression_cluster,
+    Shift_Kategorie = df_clust$Shift_Kategorie
+  )
+
+# PCA Plot mit Farbe = Shift_Kategorie und Form = Cluster
+ggplot(plot_df, aes(x = PC1, y = PC2, color = Shift_Kategorie, shape = as.factor(Cluster))) +
+  geom_point(size = 3, alpha = 0.8) +
+  theme_minimal() +
+  labs(title = "PCA: Shift_Kategorie (Farbe) & Regression Cluster (Form)",
+       x = paste0("PC1 (", round(summary(pca)$importance[2,1]*100, 1), "%)"),
+       y = paste0("PC2 (", round(summary(pca)$importance[2,2]*100, 1), "%)")) +
+  scale_color_brewer(palette = "Set1") +
+  guides(shape = guide_legend(title = "Cluster"))
+```
+
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+
 # Anzahl pro Kategorie + RBP-Status
 df_summary <- df_ergebnisse_phys %>%
   group_by(Shift_Kategorie, RBP_nach_Score) %>%
