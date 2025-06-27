@@ -382,4 +382,35 @@ ggplot(df_summary, aes(x = Shift_Kategorie, y = n, fill = RBP_nach_Score)) +
 
 ```
 
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# RBP-Status zuordnen
+df_ergebnisse_phys <- df_ergebnisse_phys %>%
+  mutate(RBP_Gruppe = ifelse(Shift_Kategorie == "kein_shift", "non-RBP", "RBP"))
+
+# Summen berechnen pro RBP_Gruppe + Shift_Kategorie
+df_summary <- df_ergebnisse_phys %>%
+  group_by(RBP_Gruppe, Shift_Kategorie) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  mutate(
+    # Kategorie-Label mit Anzahl für die Legende
+    Kategorie_mit_n = paste0(Shift_Kategorie, " (", n, ")")
+  )
+
+ggplot(df_summary, aes(x = RBP_Gruppe, y = n, fill = Kategorie_mit_n)) +
+  geom_col(position = "stack") +
+  # Kein geom_text() → keine Zahlen in den Balken
+  scale_fill_manual(
+    values = setNames(
+      c("#E69F00", "#56B4E9", "#009E73", "violet"), 
+      df_summary$Kategorie_mit_n
+    )
+  ) +
+  labs(title = "Anzahl an Proteinen pro Shift-Kategorie",
+       x = "Protein-Typ", y = "Anzahl Proteine", fill = "Shift-Kategorie (n)") +
+  theme_minimal(base_size = 13)
+
+```
 
