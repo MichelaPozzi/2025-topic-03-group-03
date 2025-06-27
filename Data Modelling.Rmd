@@ -274,7 +274,7 @@ outlier_index <- which.max(abs(plot_df$PC1))  # oder PC2, je nachdem
 df_clust_no_outlier <- df_clust[-outlier_index, ]
 scaled_data_no_outlier <- scale(df_clust_no_outlier[, vars])
 set.seed(42)
-kmeans_result <- kmeans(scaled_data_no_outlier, centers = 6)
+kmeans_result <- kmeans(scaled_data_no_outlier, centers = 3)
 
 # Clusterzuweisung speichern
 df_clust_no_outlier$regression_cluster <- factor(kmeans_result$cluster)
@@ -283,15 +283,61 @@ pca_no_outlier <- prcomp(scaled_data_no_outlier, scale. = FALSE)
 plot_df_clean <- data.frame(
   PC1 = pca_no_outlier$x[,1],
   PC2 = pca_no_outlier$x[,2],
-  Cluster = df_clust_no_outlier$regression_cluster
+  Cluster = df_clust_no_outlier$regression_cluster,
+  Protein = df_clust_no_outlier$Protein  # falls du Protein später brauchst
 )
+
+# Mergen der Shift-Kategorie über den Proteinnamen
+plot_df_clean <- merge(plot_df_clean,
+                       df_ergebnisse_phys[, c("Protein", "Shift_Kategorie")],
+                       by = "Protein", all.x = TRUE)
+
+
 library(ggplot2)
 
 ggplot(plot_df_clean, aes(x = PC1, y = PC2, color = Cluster)) +
   geom_point(size = 2, alpha = 0.8) +
   theme_minimal() +
   labs(title = "Cluster ohne Ausreißer im PCA-Raum")
+# Falls noch nicht installiert:
+# install.packages("cluster")
+library(cluster)
+# Distanzmatrix berechnen auf den skalierten Daten ohne Ausreißer
+dists <- dist(scaled_data_no_outlier)
+
+# Silhouette berechnen mit K-Means-Zuweisungen
+sil <- silhouette(as.numeric(df_clust_no_outlier$regression_cluster), dists)
+plot(sil, main = "Silhouette-Plot für K-Means-Clustering (k = 6)", col = 2:7, border = NA)
 ```
+
+```{r}
+ggplot(plot_df_clean, aes(x = PC1, y = PC2, color = Shift_Kategorie)) +
+  stat_ellipse(aes(group = Shift_Kategorie), type = "norm", linetype = "dashed") +
+  geom_point(aes(color = Shift_Kategorie), size = 2, alpha = 0.6) +
+  theme_minimal(base_size = 13) +
+  labs(
+    title = "Shift-Kategorien im PCA-Raum",
+    subtitle = "Umrisse zeigen die Gruppierung nach Shift-Kategorie",
+    x = paste0("PC1 (", round(summary(pca_no_outlier)$importance[2,1]*100,1), "%)"),
+    y = paste0("PC2 (", round(summary(pca_no_outlier)$importance[2,2]*100,1), "%)")
+  ) +
+  scale_color_brewer(palette = "Dark2")
+
+```
+```{r}
+ggplot(plot_df_clean, aes(x = PC1, y = PC2)) +
+  stat_ellipse(aes(group = Shift_Kategorie, color = Shift_Kategorie), type = "norm", linetype = "dashed") +
+  geom_point(aes(color = Cluster), size = 2.5, alpha = 0.7) +
+  theme_minimal(base_size = 13) +
+  labs(
+    title = "Physikalisch getriebene Cluster mit biologischer Shift-Kategorie als Ellipse",
+    x = paste0("PC1 (", round(summary(pca_no_outlier)$importance[2,1]*100,1), "%)"),
+    y = paste0("PC2 (", round(summary(pca_no_outlier)$importance[2,2]*100,1), "%)")
+  ) +
+  scale_color_brewer(palette = "Set2")
+
+```
+
 
 ```{r}
 library(ggplot2)
