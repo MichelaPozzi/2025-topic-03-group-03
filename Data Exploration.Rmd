@@ -864,7 +864,86 @@ legend("topright", legend = c("Ctrl1_norm", "RNAse1_norm"),
        col = c("purple", "darkblue"), lty = 1, cex = 0.8)
 
 ```
+```{r}
+library(dplyr)
 
+abs_Maxima_Mittelwerte_Kontrolle <- Maxima_Mittelwerte_Kontrolle %>%
+  group_by(Protein) %>%                   # Gruppieren nach Protein
+  slice_max(order_by = Wert, n = 1) %>% # Zeile mit maximalem Maxima behalten
+  ungroup()
+
+abs_Maxima_Mittelwerte_RNAse <- Maxima_Mittelwerte_RNAse %>%
+  group_by(Protein) %>%                   # Gruppieren nach Protein
+  slice_max(order_by = Wert, n = 1) %>% # Zeile mit maximalem Maxima behalten
+  ungroup()
+```
+
+```{r}
+# Berechnung der Anzahl der Punkte über, auf und unter der Linie y = x
+above_line <- sum(merged$Fraktion_control > merged$Fraktion_rnase)
+on_line <- sum(merged$Fraktion_control == merged$Fraktion_rnase)
+below_line <- sum(merged$Fraktion_control < merged$Fraktion_rnase)
+
+# Ausgabe der Werte in der Konsole
+cat("Anzahl Proteine über der Linie:", above_line, "\n")
+cat("Anzahl Proteine auf der Linie:", on_line, "\n")
+cat("Anzahl Proteine unter der Linie:", below_line, "\n")
+
+# Plot nochmal, damit Text eingefügt wird
+plot(
+  y = merged$Fraktion_control,
+  x = merged$Fraktion_rnase,
+  xlim = c(0, 25),
+  ylim = c(0, 25),
+  ylab = "Peaks in the control gradient (Fraction)",
+  xlab = "Peaks in the RNase gradient (Fraction)",
+  pch = 16, col = rgb(0,0,0,0.5),
+  main = "Maxima-Shift der Proteine"
+)
+abline(0, 1, col = "blue", lty = 2)
+
+# Text mit den Zahlen links unten hinzufügen
+text(x = 19, y = 2,
+     labels = paste0(
+       "left_Shift: ", above_line, "\n",
+       "kein_Shift: ", on_line, "\n",
+       "right_Shift: ", below_line),
+     adj = 0, cex = 0.8, col = "black")
+
+```
+
+#Data_Modelling
+```{r}
+hist(df_ergenisse_phys$Shift_Score,
+     breaks = 30,
+     col = "skyblue",
+     main = "Verteilung des Shift Scores",
+     xlab = "Shift Score")
+```
+
+```{r}
+# Shift Score als eine Zeile darstellen (Proteine = Spalten)
+heat_data <- t(as.matrix(df_ergenisse_phys$Shift_Score))
+
+# Spaltennamen (Proteine) trotzdem zuweisen (werden aber gleich ausgeblendet)
+colnames(heat_data) <- df_ergenisse_phys$Protein
+rownames(heat_data) <- "Shift Score"
+
+# Heatmap ohne Proteinbeschriftung
+library(pheatmap)
+
+pheatmap(
+  heat_data,
+  cluster_cols = TRUE,          # Clusterung bleibt aktiv
+  cluster_rows = FALSE,         # Nur eine Zeile – keine Zeilen-Clusterung
+  color = colorRampPalette(c("blue", "white", "red"))(100),
+  main = "Shift Scores pro Protein",
+  
+  labels_col = NA,              # <--- Spaltennamen (Proteine) ausblenden
+  fontsize_row = 10,
+  fontsize = 10
+)
+```
 
 
 # App für die Manuelle Bestimmung
