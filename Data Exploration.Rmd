@@ -879,6 +879,13 @@ abs_Maxima_Mittelwerte_RNAse <- Maxima_Mittelwerte_RNAse %>%
 ```
 
 ```{r}
+merged <- merge(
+  abs_Maxima_Mittelwerte_Kontrolle[, c("Protein", "Fraktion")],
+  abs_Maxima_Mittelwerte_RNAse[, c("Protein", "Fraktion")],
+  by = "Protein",
+  suffixes = c("_control", "_rnase")
+)
+
 # Berechnung der Anzahl der Punkte über, auf und unter der Linie y = x
 above_line <- sum(merged$Fraktion_control > merged$Fraktion_rnase)
 on_line <- sum(merged$Fraktion_control == merged$Fraktion_rnase)
