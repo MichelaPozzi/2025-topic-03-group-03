@@ -121,12 +121,32 @@ combined_table <- rbind(RBP_Table, No_RBP_Table)
 
 
 ```{r}
-# Tabelle von denen die wir auch als shift klassifiziert haben
-shift_ids = df_ergebnisse$Protein[df_ergebnisse$Shift_Kategorie != "kein_shift"]
-Proteine_erkannt = RBP_Table[RBP_Table$Entry_Name %in% shift_ids, ]
+# Beispiel:
+df_uniprot <- read_tsv("Datensätze/Uniprot_infos2.tsv", comment = "#", quote = "")
+
+library(dplyr)
+library(stringr)
+
+df_counts <- df_uniprot %>%
+  mutate(
+    Zinc_Count         = str_count(`Zinc finger`, ";") + !is.na(`Zinc finger`),
+    Coil_Count         = str_count(`Coiled coil`, ";") + !is.na(`Coiled coil`),
+    Signal_Count       = str_count(`Signal peptide`, ";") + !is.na(`Signal peptide`),
+    Glyco_Count        = str_count(`Glycosylation`, ";") + !is.na(`Glycosylation`),
+    Disulfide_Count    = str_count(`Disulfide bond`, ";") + !is.na(`Disulfide bond`),
+    TM_Count           = str_count(`Transmembrane`, ";") + !is.na(`Transmembrane`)
+  )
+
+
+Motive = df_counts[, c("Entry Name","Zinc_Count", "Coil_Count", "Signal_Count", "Glyco_Count", "Disulfide_Count", "TM_Count")]
+
+combined_table = merge(combined_table, Motive,
+                   by.x = "Entry_Name", 
+                   by.y = "Entry Name", all = FALSE)
 
 
 ```
+
 
 
 
@@ -171,16 +191,22 @@ summary(modell_multi)
 # Lineare Regression: Aussage über Masse,Länge, pI über shift_score
 ```{r}
 # physikalische Eigenschaften der Proteine, die übereinstimmen (RBP_Table), in df ergebnisse hinzufügen für die Regression
-phys_eigenschaften = combined_table[, c("Entry_Name", "Mass_kDa", "Length_AA", "pI", "Kategorie")]
+phys_eigenschaften = combined_table[, c("Entry_Name", "Mass_kDa", "Length_AA", "pI", "Listing_Count","Zinc_Count", "Coil_Count", "Signal_Count", "Glyco_Count", "Disulfide_Count", "TM_Count")]
 
-df_ergebnisse_phys = merge(df_ergebnisse, phys_eigenschaften, 
+
+df_ergebnisse_phys = merge(df_ergebnisse, phys_eigenschaften,
                    by.x = "Protein", 
                    by.y = "Entry_Name", all = FALSE)
+
+df_ergebnisse_phys$RBP_Status = ifelse(df_ergebnisse_phys$Listing_Count >= 5, "RBP", "NO_RBP")
+
+
+
 ```
 
 ```{r}
 # Regression mit den physikalischen Eigenschaften bezogen auf den von uns bestimmten shift_score
-model = lm(Shift_Score ~ Mass_kDa + Length_AA + pI, data = df_ergebnisse_phys)
+model = lm(Shift_Score ~ Coil_Count + Signal_Count + Glyco_Count + Disulfide_Count + TM_Count, data = df_ergebnisse_phys)
 summary(model)
 # Modell hat keinen guten R2 Wert also sind die 3 eigenschaften nicht perfekt, um den score vorauszusagen
 ```
@@ -497,10 +523,10 @@ colnames(conf_matrix) <- c("Vorhergesagt_NO_RBP", "Vorhergesagt_RBP")
 rownames(conf_matrix) <- c("Tatsächlich_NO_RBP", "Tatsächlich_RBP")
 conf_matrix
 
-TN <- 2505
-FP <- 72
-FN <- 4042
-TP <- 440
+TN <- 1788
+FP <- 789
+FN <- 2479
+TP <- 2003
 
 # Funktion zur Berechnung der Klassifikationsmetriken
 calc_metrics <- function(TP, TN, FP, FN) {
@@ -508,12 +534,12 @@ calc_metrics <- function(TP, TN, FP, FN) {
   PPW <- TP / (TP + FP)
   Sensitivität <- TP / (TP + FN)  # Sensitivität
   Spezifität <- TN / (TN + FP)
-  f1_score <- 2 * (precision * recall) / (precision + recall)
+  f1_score <- 2 * (PPW * Sensitivität) / (PPW + Sensitivität)
   
   # Ergebnisse als Dataframe
   metrics_df <- data.frame(
     Metric = c("Gesamttrefferquote", "PPW", "Sensitivität", "Spezifität", "F1-Score"),
-    Value = c(accuracy, precision, recall, specificity, f1_score)
+    Value = c(Gesamttrefferquote, PPW, Sensitivität, Spezifität, f1_score)
   )
   return(metrics_df)
 }
