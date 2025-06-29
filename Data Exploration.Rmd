@@ -521,6 +521,8 @@ df_ergebnisse = df_ergebnisse[df_ergebnisse$Protein != 'PKD1_HUMAN',]
 df_ergebnisse = df_ergebnisse[df_ergebnisse$Protein != 'TGM7_HUMAN',]
 df_ergebnisse = df_ergebnisse[df_ergebnisse$Protein != 'KIF1A_HUMAN',]
 
+
+df_ergebnisse_test = df_ergebnisse
 ```
 
 
@@ -709,7 +711,7 @@ df_ergebnisse <- kategorisiere_protein_shift(df_ergebnisse)
 
 ### Möglichkeit 3
 
-```{r}
+```{#r}
 klassifiziere_protein_shift_streng_v2 <- function(row) {
   parse_numeric_vector <- function(x) {
     if (is.na(x) || is.null(x)) return(numeric(0))
@@ -841,6 +843,7 @@ save(df_ergebnisse, file = "df_ergebnisse_original.RData")
 
 
 
+
 ### Plot 
 ```{r}
 # Index
@@ -864,6 +867,7 @@ legend("topright", legend = c("Ctrl1_norm", "RNAse1_norm"),
        col = c("purple", "darkblue"), lty = 1, cex = 0.8)
 
 ```
+
 ```{r}
 library(dplyr)
 
@@ -920,7 +924,7 @@ text(x = 19, y = 2,
 ```
 
 #Data_Modelling
-```{r}
+```{#r}
 hist(df_ergenisse_phys$Shift_Score,
      breaks = 30,
      col = "skyblue",
@@ -928,7 +932,7 @@ hist(df_ergenisse_phys$Shift_Score,
      xlab = "Shift Score")
 ```
 
-```{r}
+```{#r}
 # Shift Score als eine Zeile darstellen (Proteine = Spalten)
 heat_data <- t(as.matrix(df_ergenisse_phys$Shift_Score))
 
@@ -1111,3 +1115,65 @@ shinyApp(ui, server)
 
 ```
 
+```{r}
+# 📌 Pakete laden
+library(randomForest)
+library(caret)
+library(dplyr)
+
+set.seed(42)  # Für Reproduzierbarkeit
+
+# 📌 Zielspalte als Faktor
+df_ergebnisse$Manuelle_Bewertung <- as.factor(df_ergebnisse$Manuelle_Bewertung)
+
+# 📌 Feature-Auswahl
+features <- c("Shift_idx", "Summierter_Verlust", "Summierter_Gewinn",
+              "Fläche_Kontrolle", "Fläche_RNase", "Abstaende_Maxima",
+              "Verlust_Amplituden", "Gewinn_Amplituden", "p_Werte")
+
+# 📌 Daten mit Labels (600 Stück)
+df_labeled <- df_ergebnisse %>% filter(!is.na(Manuelle_Bewertung))
+
+# ========== 1. MODELLVALIDIERUNG: 10-fold Cross-Validation ==========
+ctrl <- trainControl(method = "cv", number = 10)
+
+rf_cv <- train(
+  x = df_labeled[, features],
+  y = df_labeled$Manuelle_Bewertung,
+  method = "rf",
+  ntree = 500,
+  trControl = ctrl,
+  importance = TRUE
+)
+
+cat("🔍 Cross-Validation-Ergebnisse:\n")
+print(rf_cv)
+cat("\nWichtigkeit der Variablen:\n")
+print(varImp(rf_cv))
+
+# ========== 2. FINALES MODELLTRAINING AUF ALLEN 600 GELABELTEN ==========
+rf_final <- randomForest(
+  x = df_labeled[, features],
+  y = df_labeled$Manuelle_Bewertung,
+  ntree = 500,
+  importance = TRUE
+)
+
+# ========== 3. VORHERSAGE AUF ALLE 7.000 PROTEINE ==========
+# Vorhersageklassen
+df_ergebnisse$Shift_Kategorie <- predict(rf_final, df_ergebnisse[, features])
+
+# Wahrscheinlichkeiten für jede Klasse
+probs <- predict(rf_final, df_ergebnisse[, features], type = "prob")
+
+# Höchste Wahrscheinlichkeit je Zeile = Shift Score
+df_ergebnisse$Shift_Score <- apply(probs, 1, max)
+
+# OPTIONAL: Zeige Top-10 unbewertete mit unsicherer Vorhersage
+df_ergebnisse %>%
+  filter(is.na(Manuelle_Bewertung)) %>%
+  arrange(Shift_Score) %>%
+  head(10)
+
+
+```
