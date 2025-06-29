@@ -373,9 +373,9 @@ ggplot(df_clust, aes(x = Shift_Kategorie, y = Length_AA)) +
 ```
 
 ```{r}
-# RBP Zuordnung basisierend auf unseren scores
-df_ergebnisse_phys$RBP_nach_Score <- ifelse(df_ergebnisse_phys$Shift_Kategorie == "kein_shift", "non-RBP", "RBP")
-df_ergebnisse_phys$RBP_nach_Score <- factor(df_ergebnisse_phys$rbp_status, levels = c("non-RBP", "RBP"))
+df_ergebnisse_phys$RBP_nach_Score <- ifelse(df_ergebnisse_phys$Shift_Kategorie == "kein_shift", "NO_RBP", "RBP")
+df_ergebnisse_phys$RBP_nach_Score <- factor(df_ergebnisse_phys$RBP_nach_Score, levels = c("NO_RBP", "RBP"))
+
 ```
 
 ```{r}
@@ -459,4 +459,91 @@ ggplot(df_summary, aes(x = RBP_Gruppe, y = n, fill = Kategorie_mit_n)) +
   theme_minimal(base_size = 13)
 
 ```
+
+```{r}
+# Tests für Zusammenhang zwischen pI und Kategorisierung in RBP/ nicht RBP
+
+# Wenn Verteilung normal (z.B. geprüft mit Shapiro-Wilk-Test):
+t.test(pI ~ RBP_nach_Score, data = df_ergebnisse_phys)
+
+# Wenn Verteilung nicht normal:
+wilcox.test(pI ~ RBP_nach_Score, data = df_ergebnisse_phys)
+
+shapiro.test(df_ergebnisse_phys$pI[df_ergebnisse_phys$RBP_nach_Score == "RBP"]) # NV kann. angenommen werden
+
+```
+```{r}
+ggplot(df_ergebnisse_phys, aes(x = pI, fill = RBP_nach_Score)) +
+  geom_density(alpha = 0.5) +
+  theme_minimal() +
+  labs(title = "pI-Verteilung bei RBP und Nicht-RBP", x = "pI", y = "Dichte")
+
+```
+```{r}
+install.packages('pROC')
+library(pROC)
+
+roc_result <- roc(df_ergebnisse_phys$RBP_nach_Score, df_ergebnisse_phys$pI)
+plot(roc_result, col = "blue")
+auc(roc_result)
+
+```
+
+
+```{r}
+# Vergleich Kategorisierung nach Shift_Score vs. nach Datenbank
+conf_matrix = table(df_ergebnisse_phys$Kategorie, df_ergebnisse_phys$RBP_nach_Score)
+colnames(conf_matrix) <- c("Vorhergesagt_NO_RBP", "Vorhergesagt_RBP")
+rownames(conf_matrix) <- c("Tatsächlich_NO_RBP", "Tatsächlich_RBP")
+conf_matrix
+
+TN <- 2505
+FP <- 72
+FN <- 4042
+TP <- 440
+
+# Funktion zur Berechnung der Klassifikationsmetriken
+calc_metrics <- function(TP, TN, FP, FN) {
+  Gesamttrefferquote <- (TP + TN) / (TP + TN + FP + FN)
+  PPW <- TP / (TP + FP)
+  Sensitivität <- TP / (TP + FN)  # Sensitivität
+  Spezifität <- TN / (TN + FP)
+  f1_score <- 2 * (precision * recall) / (precision + recall)
+  
+  # Ergebnisse als Dataframe
+  metrics_df <- data.frame(
+    Metric = c("Gesamttrefferquote", "PPW", "Sensitivität", "Spezifität", "F1-Score"),
+    Value = c(accuracy, precision, recall, specificity, f1_score)
+  )
+  return(metrics_df)
+}
+
+Testwerte <- calc_metrics(TP, TN, FP, FN)
+
+# Ausgabe
+print(Testwerte)
+
+image(
+  t(apply(conf_matrix, 2, rev)),           # Matrix drehen für korrektes Layout
+  axes = FALSE, col = heat.colors(10),
+  main = "Konfusionsmatrix (Heatmap)"
+)
+axis(1, at = c(0, 1), labels = colnames(conf_matrix))
+axis(2, at = c(0, 1), labels = rev(rownames(conf_matrix)))
+
+```
+
+```{r}
+library(clipr)
+
+# Beispiel: Deine DataPFrame-Spalte mit IDs
+id_list <- na.omit(RBP_Table$UniProt_ID)  # ersetze 'df' und 'UniProt_ID' nach Bedarf
+
+
+
+
+
+
+```
+
 
