@@ -127,22 +127,30 @@ df_uniprot <- read_tsv("Datensätze/Uniprot_infos2.tsv", comment = "#", quote = 
 library(dplyr)
 library(stringr)
 
-df_counts <- df_uniprot %>%
+df_uniprot_counts <- df_uniprot %>%
   mutate(
-    Zinc_Count         = str_count(`Zinc finger`, ";") + !is.na(`Zinc finger`),
-    Coil_Count         = str_count(`Coiled coil`, ";") + !is.na(`Coiled coil`),
-    Signal_Count       = str_count(`Signal peptide`, ";") + !is.na(`Signal peptide`),
-    Glyco_Count        = str_count(`Glycosylation`, ";") + !is.na(`Glycosylation`),
-    Disulfide_Count    = str_count(`Disulfide bond`, ";") + !is.na(`Disulfide bond`),
-    TM_Count           = str_count(`Transmembrane`, ";") + !is.na(`Transmembrane`)
-  )
+    Zinc_List      = strsplit(`Zinc finger`, ";\\s*"),
+    Coil_List      = strsplit(`Coiled coil`, ";\\s*"),
+    Signal_List    = strsplit(`Signal peptide`, ";\\s*"),
+    Glyco_List     = strsplit(`Glycosylation`, ";\\s*"),
+    Disulfide_List = strsplit(`Disulfide bond`, ";\\s*"),
+    TM_List       = strsplit(`Transmembrane`, ";\\s*"),
+    
+    Zinc_Count      = ifelse(is.na(`Zinc finger`)      | `Zinc finger` == "",      0, lengths(Zinc_List)),
+    Coil_Count      = ifelse(is.na(`Coiled coil`)      | `Coiled coil` == "",      0, lengths(Coil_List)),
+    Signal_Count    = ifelse(is.na(`Signal peptide`)   | `Signal peptide` == "",   0, lengths(Signal_List)),
+    Glyco_Count     = ifelse(is.na(`Glycosylation`)    | `Glycosylation` == "",    0, lengths(Glyco_List)),
+    Disulfide_Count = ifelse(is.na(`Disulfide bond`)   | `Disulfide bond` == "",   0, lengths(Disulfide_List)),
+    TM_Count        = ifelse(is.na(`Transmembrane`)    | `Transmembrane` == "",    0, lengths(TM_List))
+  ) %>%
+  select(Entry, `Entry Name`, Zinc_Count, Coil_Count, Signal_Count,
+         Glyco_Count, Disulfide_Count, TM_Count)
+
+combined_table <- combined_table %>%
+  left_join(df_uniprot_counts, by = c("Entry_Name" = "Entry Name"))
 
 
-Motive = df_counts[, c("Entry Name","Zinc_Count", "Coil_Count", "Signal_Count", "Glyco_Count", "Disulfide_Count", "TM_Count")]
 
-combined_table = merge(combined_table, Motive,
-                   by.x = "Entry_Name", 
-                   by.y = "Entry Name", all = FALSE)
 
 
 ```
@@ -206,10 +214,16 @@ df_ergebnisse_phys$RBP_Status = ifelse(df_ergebnisse_phys$Listing_Count >= 5, "R
 
 ```{r}
 # Regression mit den physikalischen Eigenschaften bezogen auf den von uns bestimmten shift_score
-model = lm(Shift_Score ~ Coil_Count + Signal_Count + Glyco_Count + Disulfide_Count + TM_Count, data = df_ergebnisse_phys)
+model = lm(Shift_Score ~ pI + Zinc_Count + Coil_Count + Signal_Count + Glyco_Count + Disulfide_Count + TM_Count, data = df_ergebnisse_phys)
 summary(model)
 # Modell hat keinen guten R2 Wert also sind die 3 eigenschaften nicht perfekt, um den score vorauszusagen
 ```
+
+```{r}
+model = lm(Shift_Score ~ Zinc_Count, data = df_ergebnisse_phys)
+summary(model)
+```
+
 
 ```{r}
 df_ergebnisse_phys$fitted_shift = predict(model, newdata = df_ergebnisse_phys)
