@@ -35,7 +35,7 @@ plot(pca$x[,1], pca$x[,2],
 # PCA mit normierten Werten
 # nur Carls Code
 
-pca = prcomp(MS_Table_norm, center = FALSE, scale = FALSE)
+pca = prcomp(MS_Table_norm, center = TRUE, scale = TRUE)
 summary(pca)
 pca$sdev
 variance = (pca$sdev)^2

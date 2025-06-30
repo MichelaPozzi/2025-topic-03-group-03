@@ -123,51 +123,20 @@ combined_table <- rbind(RBP_Table, No_RBP_Table)
 ```{r}
 library(readr)
 library(dplyr)
-df_uniprot <- read_tsv("Datensätze/Uniprot_infos.tsv", comment = "#", quote = "")
+
 df_uniprot_counts <- df_uniprot %>%
   mutate(
-    Zinc_List  = strsplit(`Zinc finger`, ";\\s*"),
-    Coil_List  = strsplit(`Coiled coil`, ";\\s*"),
-    Motif_List = strsplit(Motif, ";\\s*"),
-
-    Zinc_Count  = ifelse(is.na(`Zinc finger`) | `Zinc finger` == "", 0, lengths(Zinc_List)),
-    Coil_Count  = ifelse(is.na(`Coiled coil`) | `Coiled coil` == "", 0, lengths(Coil_List)),
-    Motif_Count = ifelse(is.na(Motif)         | Motif == "",         0, lengths(Motif_List))
-  ) %>%
-  select(Entry, `Entry Name`, Zinc_Count, Coil_Count, Motif_Count)
-
-
-# Beispiel:
-df_uniprot <- read_tsv("Datensätze/Uniprot_infos2.tsv", comment = "#", quote = "")
-
-library(dplyr)
-library(stringr)
-
-df_uniprot_counts1 <- df_uniprot %>%
-  mutate(
-    Zinc_List      = strsplit(`Zinc finger`, ";\\s*"),
-    Coil_List      = strsplit(`Coiled coil`, ";\\s*"),
-    Signal_List    = strsplit(`Signal peptide`, ";\\s*"),
-    Glyco_List     = strsplit(`Glycosylation`, ";\\s*"),
-    Disulfide_List = strsplit(`Disulfide bond`, ";\\s*"),
-    TM_List       = strsplit(`Transmembrane`, ";\\s*"),
-    
-    Zinc_Count      = ifelse(is.na(`Zinc finger`)      | `Zinc finger` == "",      0, lengths(Zinc_List)),
-    Coil_Count      = ifelse(is.na(`Coiled coil`)      | `Coiled coil` == "",      0, lengths(Coil_List)),
-    Signal_Count    = ifelse(is.na(`Signal peptide`)   | `Signal peptide` == "",   0, lengths(Signal_List)),
-    Glyco_Count     = ifelse(is.na(`Glycosylation`)    | `Glycosylation` == "",    0, lengths(Glyco_List)),
-    Disulfide_Count = ifelse(is.na(`Disulfide bond`)   | `Disulfide bond` == "",   0, lengths(Disulfide_List)),
-    TM_Count        = ifelse(is.na(`Transmembrane`)    | `Transmembrane` == "",    0, lengths(TM_List))
+    Zinc_Count      = ifelse(is.na(`Zinc finger`)      | `Zinc finger` == "",      NA, lengths(strsplit(`Zinc finger`, ";\\s*"))),
+    Coil_Count      = ifelse(is.na(`Coiled coil`)      | `Coiled coil` == "",      NA, lengths(strsplit(`Coiled coil`, ";\\s*"))),
+    Signal_Count    = ifelse(is.na(`Signal peptide`)   | `Signal peptide` == "",   NA, lengths(strsplit(`Signal peptide`, ";\\s*"))),
+    Glyco_Count     = ifelse(is.na(`Glycosylation`)    | `Glycosylation` == "",    NA, lengths(strsplit(`Glycosylation`, ";\\s*"))),
+    Disulfide_Count = ifelse(is.na(`Disulfide bond`)   | `Disulfide bond` == "",   NA, lengths(strsplit(`Disulfide bond`, ";\\s*"))),
+    TM_Count        = ifelse(is.na(`Transmembrane`)    | `Transmembrane` == "",    NA, lengths(strsplit(`Transmembrane`, ";\\s*")))
   ) %>%
   select(Entry, `Entry Name`, Zinc_Count, Coil_Count)
 
 combined_table <- combined_table %>%
   left_join(df_uniprot_counts, by = c("Entry_Name" = "Entry Name"))
-
-
-
-
-
 ```
 
 
@@ -178,7 +147,7 @@ combined_table <- combined_table %>%
 Aussage über Masse,Länge, pI über shift_score
 ```{r}
 # physikalische Eigenschaften der Proteine, die übereinstimmen (RBP_Table), in df ergebnisse hinzufügen für die Regression
-phys_eigenschaften = combined_table[, c("Entry_Name", "Mass_kDa", "Length_AA", "pI", "Listing_Count","Zinc_Count", "Coil_Count")]
+phys_eigenschaften = combined_table[, c("Entry_Name", "Mass_kDa", "Length_AA", "pI", "Listing_Count","Zinc_Count", "Coil_Count", "RBP2GO_Score")]
 
 
 df_ergebnisse_phys = merge(df_ergebnisse, phys_eigenschaften,
@@ -221,6 +190,12 @@ plot(df_ergebnisse_phys$Shift_Score, df_ergebnisse_phys$fittet_shift,
      main = "Vergleich gemessener vs. vorhergesagter Shift Scores")
 abline(a=0, b=1, col="red")  # ideale Gerade y=x
 # gemessener und vorausgesagter shift stimmen nicht wirklch überein - Info über die eigenschaften reicht eigentlich nicht aus, um shift_score zu bestimmen
+
+plot(df_ergebnisse_phys$Shift_Score, df_ergebnisse_phys$fitted_shift,
+     xlab = "Gemessener Shift Score", ylab = "Vorhergesagter Shift Score",
+     main = "Vergleich gemessener vs. vorhergesagter Shift Scores")
+abline(a=0, b=1, col="red")
+
 ```
 
 ```{r}
@@ -237,6 +212,7 @@ kmeans_result = kmeans(scaled_data, centers = 5)
 
 # Cluster-Zuweisung speichern
 df_clust$regression_cluster = factor(kmeans_result$cluster)
+
 ```
 
 
@@ -261,6 +237,8 @@ ggplot(plot_df, aes(x = PC1, y = PC2, color = Cluster)) +
        x = paste0("PC1 (", round(summary(pca)$importance[2,1]*100,1), "%)"),
        y = paste0("PC2 (", round(summary(pca)$importance[2,2]*100,1), "%)")) +
   scale_color_brewer(palette = "Set2")
+
+
 ```
 
 ```{r}
@@ -511,7 +489,7 @@ auc(roc_result)
 
 ```{r}
 # Vergleich Kategorisierung nach Shift_Score vs. nach Datenbank
-conf_matrix = table(df_ergebnisse_phys$Kategorie, df_ergebnisse_phys$RBP_nach_Score)
+conf_matrix = table(df_ergebnisse_phys$RBP_Status, df_ergebnisse_phys$RBP_nach_Score)
 colnames(conf_matrix) <- c("Vorhergesagt_NO_RBP", "Vorhergesagt_RBP")
 rownames(conf_matrix) <- c("Tatsächlich_NO_RBP", "Tatsächlich_RBP")
 conf_matrix
@@ -557,6 +535,7 @@ library(clipr)
 
 # Beispiel: Deine DataPFrame-Spalte mit IDs
 id_list <- na.omit(RBP_Table$UniProt_ID)  # ersetze 'df' und 'UniProt_ID' nach Bedarf
+
 
 
 
