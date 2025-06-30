@@ -34,7 +34,6 @@ SW_Replikatsnamen_norm = c('SW_Ctrl1_norm','SW_Ctrl2_norm','SW_Ctrl3_norm','SW_R
 
 ```{r}
 Treatmentnamen = c('Ctrl1_norm','Ctrl2_norm','Ctrl3_norm','RNAse1_norm','RNAse2_norm','RNAse3_norm')
-
 ```
 
 # Beschreibung der Daten
@@ -209,52 +208,172 @@ MS_Table_norm
 
 ## Visualisierung der Normierung
 
+## Setup von Farbpalette und Themen für Plots
 ```{r}
-# Benötigte Pakete laden
+# Hexcodes für unteschiedliche Farben:
+
+ "#C7D5DE" # Balkenüberschirft
+ "#DFE3EA" # Hintergrundfarbe
+ "#617297" # Überschirftenboxen
+
+"#A786C2"; "#8684C2"; "#617297"; "#7396AD"; "#8CABB5"; "#728083"
+"#EDE6F2"; "#E7E6F2"; "#DFE2EA"; "#E2EAEE"; "#E7EEF0"; "#E2E5E6"
+"#DBCEE6"; "#CFCDE6"; "#BFC6D5"; "#C6D4DE"; "#D0DDE0"; "#C5CCCD"
+"#C9B6D9"; "#B7B5DA"; "#9FAAC1"; "#AABFCC"; "#BACCD2"; "#A9B3B5"
+"#7E51A4"; "#504DA4"; "#485571"; "#527286"; "#628691"; "#556062"
+"#54366D"; "#35336D"; "#30394B"; "#364B5A"; "#415961"; "#394041"
+
+
+# Farbpalette zentral definieren
+farben_status <- c("raw" = "#7E51A4", "normalized" = "#504DA4")
+farben_status_cap <- c("Raw" = "#7E51A4", "Normalized" = "#504DA4") # Für Großschreibung
+farben_treatment <- c("Ctrl" = "#8CABB5", "RNAse" = "#A786C2")
+farben_condition <- c("Control" = "#8CABB5", "RNase" = "#A786C2")
+
+
+# Einheitliches Theme für Poster
+theme_poster <- theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    axis.title = element_text(face = "bold"),
+    legend.title = element_text(face = "bold"),
+    legend.position = "right"
+  )
+
+```
+```{r}
 library(ggplot2)
-library(reshape2)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(patchwork) # für Side-by-side plots
 
-# 1. Mittelwerte über alle Proteine pro Sample (Spalte)
-frak_mittel_raw <- colMeans(MS_Table, na.rm = TRUE)
-frak_mittel_mittel <- colMeans(MS_Table_norm_mittel, na.rm = TRUE)
-frak_mittel_sw <- colMeans(MS_Table_norm, na.rm = TRUE)
-
-# 2. Dataframes für ggplot vorbereiten
-
-prepare_boxplot_df <- function(mittelwerte_vector) {
-  df <- data.frame(Sample = names(mittelwerte_vector), Value = mittelwerte_vector)
-  df$Fraction <- sub("_.*", "", df$Sample)  # z.B. "Fraction1"
-  df$Condition <- ifelse(grepl("Ctrl", df$Sample), "Control", "RNase")
-  return(df)
+# Funktion: long data frame mit Protein, Sample, Intensity
+to_long_df <- function(df, status_label) {
+  df %>%
+    as.data.frame() %>%
+    mutate(Protein = rownames(.)) %>%
+    pivot_longer(-Protein, names_to = "Sample", values_to = "Intensity") %>%
+    mutate(Status = status_label)
 }
 
-df_raw <- prepare_boxplot_df(frak_mittel_raw)
-df_mittel <- prepare_boxplot_df(frak_mittel_mittel)
-df_sw <- prepare_boxplot_df(frak_mittel_sw)
+raw_long <- to_long_df(MS_Table, "raw")
+norm_long <- to_long_df(MS_Table_norm, "normalized")
+combined <- bind_rows(raw_long, norm_long)
 
-# 3. Boxplot-Funktion
+combined <- combined %>%
+  mutate(
+    Fraction = str_extract(Sample, "Fraction\\d+"),
+    Fraction_num = as.numeric(str_extract(Fraction, "\\d+")),
+    Treatment = ifelse(grepl("Ctrl", Sample), "Ctrl", "RNAse")
+  )
 
-plot_box <- function(df, title, y_label) {
-  ggplot(df, aes(x = Fraction, y = Value, fill = Condition)) +
-    geom_boxplot(outlier.size = 0.5) +
+# Log transform (add 1 to avoid log(0))
+combined <- combined %>%
+  mutate(LogIntensity = log10(Intensity + 1))
+
+# Nur Ctrl oder RNAse, hier Beispiel Ctrl
+combined_ctrl <- combined %>% filter(Treatment == "Ctrl")
+
+# Heatmap vorbereiten
+plot_heatmap <- function(data, title) {
+  ggplot(data, aes(x = factor(Fraction_num), y = Protein, fill = LogIntensity)) +
+    geom_tile() +
+    scale_fill_viridis_c(option = "magma") +
+    labs(x = "Fraktion", y = "Protein", fill = "log10(Intensität+1)", title = title) +
     theme_minimal() +
-    theme(
-      axis.text.x = element_text(angle = 90, hjust = 1, size = 7),
-      legend.position = "right"
-    ) +
-    labs(title = title, y = y_label, x = "Fraktion")
+    theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())
 }
 
-# 4. Plotten
+p1 <- plot_heatmap(filter(combined_ctrl, Status == "raw"), "Raw Intensities (Ctrl)")
+p2 <- plot_heatmap(filter(combined_ctrl, Status == "normalized"), "Normalized Intensities (Ctrl)")
 
-p1 <- plot_box(df_raw, "Boxplot vor Normalisierung", "Signalintensität")
-p2 <- plot_box(df_mittel, "Boxplot nach Mittelwert-Normalisierung", "Normierte Intensität")
-p3 <- plot_box(df_sw, "Boxplot nach Sliding Window (Summe = 100%)", "Relative Intensität [%]")
+p1 + p2  + plot_layout(ncol = 2)
 
-# 5. Anzeigen
-print(p1)
-print(p2)
-print(p3)
+```
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# Beispiel: Mittelwerte pro Fraktion und Status berechnen
+prepare_summary <- function(df, status_label) {
+  df %>%
+    as.data.frame() %>%
+    mutate(Protein = rownames(.)) %>%
+    pivot_longer(-Protein, names_to = "Sample", values_to = "Intensity") %>%
+    mutate(Status = status_label,
+           Fraction = as.numeric(gsub("Fraction(\\d+)_.*", "\\1", Sample)),
+           Treatment = ifelse(grepl("Ctrl", Sample), "Ctrl", "RNAse")) %>%
+    group_by(Treatment, Fraction, Status) %>%
+    summarise(mean_intensity = mean(Intensity, na.rm=TRUE), .groups="drop")
+}
+
+raw_summary <- prepare_summary(MS_Table, "raw")
+norm_summary <- prepare_summary(MS_Table_norm, "normalized")
+
+combined_summary <- bind_rows(raw_summary, norm_summary)
+
+# Ribbon Plot für raw und normalized (Ctrl und RNAse)
+ggplot(combined_summary, aes(x=Fraction, y=mean_intensity, fill=Status, color=Status)) +
+  geom_ribbon(aes(ymin=0, ymax=mean_intensity), alpha=0.3) +
+  geom_line(size=1) +
+  facet_wrap(~Treatment) +
+  scale_y_log10() +
+  labs(title="Proteinprofil über Fraktionen: raw vs. normalized",
+       x="Fraktion", y="Mittlere Intensität (log10)") +
+  scale_fill_manual(values = farben_status) +
+  scale_color_manual(values = farben_status) +
+  theme_minimal()
+
+
+
+
+```
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# Hilfsfunktion: berechne SD pro Protein und Fraktion über Replikate
+calc_protein_sd <- function(data, status) {
+  df <- data
+  df$Protein <- rownames(df)
+
+  df_long <- df %>%
+    pivot_longer(-Protein, names_to = "Sample", values_to = "Intensity") %>%
+    mutate(
+      Fraktion = as.numeric(gsub("Fraction(\\d+)_.*", "\\1", Sample)),
+      Treatment = ifelse(grepl("Ctrl", Sample), "Ctrl", "RNAse")
+    )
+
+  # SD über Replikate pro Protein und Fraktion
+  df_sd <- df_long %>%
+    group_by(Protein, Fraktion, Treatment) %>%
+    summarise(SD = sd(Intensity, na.rm = TRUE), .groups = "drop") %>%
+    mutate(Status = status)
+
+  return(df_sd)
+}
+
+# SD pro Protein pro Fraktion berechnen
+sd_raw <- calc_protein_sd(MS_Table, "Raw")
+sd_norm <- calc_protein_sd(MS_Table_norm, "Normalized")
+
+sd_combined <- bind_rows(sd_raw, sd_norm)
+
+# Durchschnittliche SD pro Fraktion & Behandlung (über Proteine gemittelt)
+sd_summary <- sd_combined %>%
+  group_by(Fraktion, Treatment, Status) %>%
+  summarise(mean_SD = mean(SD, na.rm = TRUE), .groups = "drop")
+
+ggplot(sd_summary, aes(x = Fraktion, y = mean_SD, color = Status)) +
+  geom_line(size = 1) +
+  facet_wrap(~Treatment) +
+  labs(title = "Durchschnittliche Protein-Varianz pro Fraktion",
+       x = "Fraktion", y = "mittlere SD über Replikate") +
+  theme_minimal(base_size = 12) +
+  scale_color_manual(values = farben_status_cap)
 
 
 ```
@@ -306,6 +425,7 @@ ggplot(df_all, aes(x = Fraction, y = Value, fill = Condition)) +
   facet_wrap(~Normalization, ncol = 2) +  # nebeneinander
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 8)) +
+  scale_fill_manual(values = farben_condition) +
   labs(title = "Vergleich: Vor vs. Nach Normalisierung",
        x = "Fraktion", y = "Intensität", fill = "Bedingung")
 
@@ -395,6 +515,7 @@ p_violin <- ggplot(kor_long, aes(x = Paar, y = Korrelation, fill = Paar)) +
   labs(title = "Verteilung der Pearson-Korrelationen (Violinplot)",
        x = "Paar von Replikaten",
        y = "Korrelationskoeffizient") +
+  scale_fill_manual(values = c("#7E51A4", "#485571", "#504DA4")) +
   theme(legend.position = "none")
 
 print(p_violin)
