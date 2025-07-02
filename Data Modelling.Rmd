@@ -164,19 +164,41 @@ df_ergebnisse_phys$RBP_Status = ifelse(df_ergebnisse_phys$Listing_Count >= 5, "R
 
 ```{r}
 # Regression mit den physikalischen Eigenschaften bezogen auf den von uns bestimmten shift_score
-model = lm(Kategorie ~ pI, data = df_ergebnisse_phys)
-summary(model)
+model_linear = lm(Shift_Score ~ pI + Mass_kDa, data = df_ergebnisse_phys)
+summary(model_linear)
 # Modell hat keinen guten R2 Wert also sind die 3 eigenschaften nicht perfekt, um den score vorauszusagen
 ```
-
 ```{r}
+# Visualisierung der linearen Regressionsergebnissen: Shift Score durch pI und Masse
+df_plot <- df_ergebnisse_phys[complete.cases(df_ergebnisse_phys[, c("RBP_nach_Score", "Mass_kDa", "pI")]), ]
+df_plot <- df_plot[df_plot$Mass_kDa < 2000, ]
+df_plot$predicted_score <- predict(model_linear, newdata = df_plot, type = "response")
+
+ggplot(df_plot, aes(x = Mass_kDa, y = pI, color = predicted_score)) +
+  geom_point(size = 2, alpha = 0.7) +
+  scale_color_gradient(low = "blue", high = "red") +
+  labs(title = "Vorhergesagter Score auf Basis von pI und Masse",
+       x = "Masse", y = "Isoelektrischer Punkt (pI)",
+       color = "Score") +
+  theme_minimal()
+```
+```{r}
+# Dichteverteilungen
+ggplot(df_ergebnisse_phys, aes(x = Mass_kDa, y = pI)) +
+  stat_density_2d(aes(fill = ..level..), geom = "polygon") +
+  facet_wrap(~RBP_nach_Score) +
+  labs(x = "Masse", y = "pI", title = "2D-Dichte von Masse & pI nach Shift Kategorie") +
+  theme_minimal()
+```
+
+```{#r}
 model = lm(Shift_Score ~ Zinc_Count, data = df_ergebnisse_phys)
 summary(model)
 ```
 
 
 ```{r}
-df_ergebnisse_phys$fitted_shift = predict(model, newdata = df_ergebnisse_phys)
+df_ergebnisse_phys$fitted_shift = predict(model_linear, newdata = df_ergebnisse_phys)
 ```
 
 ```{r}
@@ -372,7 +394,7 @@ ggplot(df_clust, aes(x = Shift_Kategorie, y = Length_AA)) +
 ```
 
 ```{r}
-df_ergebnisse_phys$RBP_nach_Score <- ifelse(df_ergebnisse_phys$Kategorie == "kein_shift", "NO_RBP", "RBP")
+df_ergebnisse_phys$RBP_nach_Score <- ifelse(df_ergebnisse_phys$Shift_Kategorie == "kein_shift", "NO_RBP", "RBP")
 df_ergebnisse_phys$RBP_nach_Score <- factor(df_ergebnisse_phys$RBP_nach_Score, levels = c("NO_RBP", "RBP"))
 
 ```
@@ -553,20 +575,28 @@ df_pred$fitted_Status <- predict(model_logit, newdata = df_pred, type = "respons
 
 
 ```{r}
+# Wie gut stimmt das Modell mit der Klassifikation als RBP/ NO_RBP überein -> statistisch überprüfen
 df_pred$fitted_Status <- ifelse(df_pred$fitted_Status > 0.5, "RBP", "NO_RBP")
 df_pred$fitted_Status <- factor(df_pred$fitted_Status, levels = c("NO_RBP", "RBP"))
+complete_idx <- complete.cases(df_ergebnisse_phys[, c("Zinc_Count", "pI")]) # Nur die Reihen ohne NA Werte 
+df_complete <- df_ergebnisse_phys[complete_idx, ] # als Datenframe
 
-complete_idx <- complete.cases(df_ergebnisse_phys[, c("Zinc_Count", "pI")])
+# Vorhersagen durch das logistische Modell
+df_complete$fitted_Status <- predict(model_logit, newdata = df_complete, type = "response")
 
-# Confusion Matrix mit passenden Zeilen aus beiden Dataframes
+# bei welcher Wahrscheinlichkeit wird als RBP klassifiziert (benötigt für den Vergleich mit RBP_nach_Score bzw mit RBP_Status)
+df_complete$fitted_Status <- ifelse(df_complete$fitted_Status > 0.5, "RBP", "NO_RBP")
+df_complete$fitted_Status <- factor(df_complete$fitted_Status, levels = c("NO_RBP", "RBP"))
+
 conf_matrix <- table(
-  True = df_ergebnisse_phys$RBP_nach_Score[complete_idx],
-  Predicted = df_pred$fitted_Status
+  True = df_complete$RBP_nach_Score,
+  Predicted = df_complete$fitted_Status
 )
+
 colnames(conf_matrix) <- c("Vom Modell vorhergesagt: NO_RBP", "Vom Modell vorhergesagt: RBP")
 rownames(conf_matrix) <- c("Klassifikation: NO_RBP", "Klassifikation: RBP")
 
-conf_matrix
+print(conf_matrix)
 
 TN <- 377 
 FP <- 17
@@ -595,30 +625,54 @@ print(Testwerte)
 ```
 
 ```{r}
-# 1) Indizes für vollständige Werte (keine NA in den Prädiktoren)
-complete_idx <- complete.cases(df_ergebnisse_phys[, c("Zinc_Count", "pI")])
+# Wie gut stimmt das Modell mit der Klassifikation als RBP/ NO_RBP überein -> statistisch überprüfen
+# das gleiche nochmal aber für RBP_Status
 
-# 2) Datenframe mit vollständigen Fällen (RBP_nach_Score und Prädiktoren)
-df_complete <- df_ergebnisse_phys[complete_idx, ]
+df_pred$fitted_Status <- ifelse(df_pred$fitted_Status > 0.5, "RBP", "NO_RBP")
+df_pred$fitted_Status <- factor(df_pred$fitted_Status, levels = c("NO_RBP", "RBP"))
+complete_idx <- complete.cases(df_ergebnisse_phys[, c("Zinc_Count", "pI")]) # Nur die Reihen ohne NA Werte 
+df_complete <- df_ergebnisse_phys[complete_idx, ] # als Datenframe
 
-# 3) Vorhersagen für diese vollständigen Fälle
+# Vorhersagen durch das logistische Modell
 df_complete$fitted_Status <- predict(model_logit, newdata = df_complete, type = "response")
 
-# 4) Binäre Klassifikation nach Schwellenwert 0.5
+# bei welcher Wahrscheinlichkeit wird als RBP klassifiziert (benötigt für den Vergleich mit RBP_nach_Score bzw mit RBP_Status)
 df_complete$fitted_Status <- ifelse(df_complete$fitted_Status > 0.5, "RBP", "NO_RBP")
 df_complete$fitted_Status <- factor(df_complete$fitted_Status, levels = c("NO_RBP", "RBP"))
 
-# 5) Confusion Matrix erstellen
 conf_matrix <- table(
-  True = df_complete$RBP_nach_Score,
+  True = df_complete$RBP_Status,
   Predicted = df_complete$fitted_Status
 )
 
-# Optional Spalten und Zeilen beschriften
 colnames(conf_matrix) <- c("Vom Modell vorhergesagt: NO_RBP", "Vom Modell vorhergesagt: RBP")
 rownames(conf_matrix) <- c("Klassifikation: NO_RBP", "Klassifikation: RBP")
 
 print(conf_matrix)
+
+TN <- 378 
+FP <- 17
+FN <- 143
+TP <- 32
+
+# Funktion zur Berechnung der Klassifikationsmetriken
+calc_metrics <- function(TP, TN, FP, FN) {
+  Gesamttrefferquote <- (TP + TN) / (TP + TN + FP + FN)
+  PPW <- TP / (TP + FP)
+  Sensitivität <- TP / (TP + FN)  # Sensitivität
+  Spezifität <- TN / (TN + FP)
+  f1_score <- 2 * (PPW * Sensitivität) / (PPW + Sensitivität)
+  
+  # Ergebnisse als Dataframe
+  metrics_df <- data.frame(
+    Metric = c("Gesamttrefferquote", "PPW", "Sensitivität", "Spezifität", "F1-Score"),
+    Value = c(Gesamttrefferquote, PPW, Sensitivität, Spezifität, f1_score)
+  )
+  return(metrics_df)
+}
+
+Testwerte <- calc_metrics(TP, TN, FP, FN)
+print(Testwerte)
 
 ```
 
@@ -630,24 +684,6 @@ id_list <- na.omit(RBP_Table$UniProt_ID)  # ersetze 'df' und 'UniProt_ID' nach B
 ```
 
 ```{r}
-# Nur vollständige Fälle
-df_plot <- df_ergebnisse_phys[complete.cases(df_ergebnisse_phys[, c("RBP_nach_Score", "Zinc_Count", "pI")]), ]
-df_plot$predicted_prob <- predict(model_logit, type = "response")
 
-ggplot(df_plot, aes(x = Zinc_Count, y = pI, color = predicted_prob)) +
-  geom_point(size = 2, alpha = 0.7) +
-  scale_color_gradient(low = "blue", high = "red") +
-  labs(title = "Vorhergesagte Wahrscheinlichkeit für RBP",
-       x = "Zink-Finger Anzahl", y = "Isoelektrischer Punkt (pI)",
-       color = "P(RBP)") +
-  theme_minimal()
-```
-
-```{r}
-ggplot(df_ergebnisse_phys, aes(x = Zinc_Count, y = pI)) +
-  stat_density_2d(aes(fill = ..level..), geom = "polygon") +
-  facet_wrap(~RBP_nach_Score) +
-  labs(x = "Zink-Finger", y = "pI", title = "2D-Dichte von Zinc & pI nach RBP-Status") +
-  theme_minimal()
 ```
 
