@@ -119,7 +119,6 @@ combined_table <- rbind(RBP_Table, No_RBP_Table)
 ```
 
 
-
 ```{r}
 library(readr)
 library(dplyr)
@@ -143,10 +142,8 @@ combined_table <- combined_table %>%
 
 
 
+# Lineare Regression: Isoelektrischer Punkt und Masse als Prädiktoren für den Shift_Score
 
-# Lineare Regression
-
-Aussage über Masse,Länge, pI über shift_score
 ```{r}
 # physikalische Eigenschaften der Proteine, die übereinstimmen (RBP_Table), in df ergebnisse hinzufügen für die Regression
 phys_eigenschaften = combined_table[, c("Entry_Name", "Mass_kDa", "Length_AA", "pI", "Listing_Count","Zinc_Count", "Coil_Count", "RBP2GO_Score", "TM_Count")]
@@ -158,15 +155,15 @@ df_ergebnisse_phys = merge(df_ergebnisse, phys_eigenschaften,
 
 df_ergebnisse_phys$RBP_Status = ifelse(df_ergebnisse_phys$Listing_Count >= 5, "RBP", "NO_RBP")
 
-
-
+#Einteilung der Proteine ein RBP/ kein RBP auf Basis des SHift_Scores
+df_ergebnisse_phys$RBP_nach_Score <- ifelse(df_ergebnisse_phys$Shift_Kategorie == "kein_shift", "NO_RBP", "RBP")
+df_ergebnisse_phys$RBP_nach_Score <- factor(df_ergebnisse_phys$RBP_nach_Score, levels = c("NO_RBP", "RBP"))
 ```
 
 ```{r}
 # Regression mit den physikalischen Eigenschaften bezogen auf den von uns bestimmten shift_score
 model_linear = lm(Shift_Score ~ pI + Mass_kDa, data = df_ergebnisse_phys)
 summary(model_linear)
-# Modell hat keinen guten R2 Wert also sind die 3 eigenschaften nicht perfekt, um den score vorauszusagen
 ```
 ```{r}
 # Visualisierung der linearen Regressionsergebnissen: Shift Score durch pI und Masse
@@ -191,6 +188,55 @@ ggplot(df_ergebnisse_phys, aes(x = Mass_kDa, y = pI)) +
   theme_minimal()
 ```
 
+```{r}
+df_plot <- df_ergebnisse_phys[complete.cases(df_ergebnisse_phys[, c("Shift_Score", "pI", "Mass_kDa", "Shift_Kategorie")]), ]
+
+df_plot <- df_plot[df_plot$Mass_kDa < 2000, ] # Ausreißer entfenen
+
+# Modellvorhersage (Vorhersage des Shift Scores)
+df_plot$predicted_score <- predict(model, newdata = df_plot)
+
+library(ggplot2)
+
+ggplot(df_plot, aes(x = Mass_kDa, y = pI, color = Shift_Kategorie)) +
+  geom_point(size = 2, alpha = 0.8) +
+  labs(title = "Shift-Kategorie nach Masse und pI",
+       x = "Masse (kDa)", y = "Isoelektrischer Punkt (pI)",
+       color = "Shift-Kategorie") +
+  theme_minimal()
+
+```
+```{r}
+# pI und Masse isoliert betrachten als Prädiktor für den Shift Score
+# Zusammenhang zwischen Veränderung von pI bzw. Masse und dem shift score
+# Fläche ist 95% Konfidenzintervall
+
+install.packages("effects")
+library(effects)
+
+plot(allEffects(model_linear), main = "Teil-Effekte der Prädiktoren auf Shift Score")
+
+```
+```{r}
+# Plots, die zeigen, dass es einen linearen Zusammenhang gibt zwischen jeweils pI/ Masse und Shift Score, das aber nicht die Variablen sind, die den Shift Score komplett erklären
+ggplot(df_plot, aes(x = pI, y = Shift_Score, color = Shift_Kategorie)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE, color = "black") +
+  labs(title = "Einfluss von pI auf Shift Score",
+       x = "Isoelektrischer Punkt (pI)",
+       y = "Shift Score") +
+  theme_minimal()
+ggplot(df_plot, aes(x = Mass_kDa, y = Shift_Score, color = Shift_Kategorie)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE, color = "black") +
+  labs(title = "Einfluss von Masse auf Shift Score",
+       x = "Masse (kDa)",
+       y = "Shift Score") +
+  theme_minimal()
+```
+
+
+
 ```{#r}
 model = lm(Shift_Score ~ Zinc_Count, data = df_ergebnisse_phys)
 summary(model)
@@ -208,6 +254,10 @@ range(df_ergebnisse_phys$fitted_shift, na.rm = TRUE)
 
 
 ```{r}
+# Vergleich vorrherrgesagter Score durch das Modell und dem bestimmten Shift_Score
+# gibt linearen Zusammenhang, aber viel Streuung
+# Prädiktoren aus dem Modell allein erklären den Shift nicht
+
 plot(df_ergebnisse_phys$Shift_Score, df_ergebnisse_phys$fittet_shift,
      xlab = "Gemessener Shift Score",
      ylab = "Vorhergesagter (fitted) Shift Score",
@@ -224,7 +274,7 @@ abline(a=0, b=1, col="red")
 
 ```{r}
 # Variablen auswählen und fehlende Werte entfernen
-vars = c("Mass_kDa", "Length_AA", "pI", "fitted_shift")
+vars = c("Mass_kDa", "pI", "fitted_shift")
 df_clust = df_ergebnisse_phys[complete.cases(df_ergebnisse_phys[, vars]), ]
 
 # Clustering vorbereiten (Skalierung wichtig!)
@@ -266,32 +316,7 @@ ggplot(plot_df, aes(x = PC1, y = PC2, color = Cluster)) +
 ```
 
 ```{r}
-# ist noch falsch 
-cluster_kategorie <- merge(df_clust, df_ergebnisse_phys[, c("Protein", "Shift_Score")],
-                   by = "Protein", all.x = TRUE)
-ggplot(plot_df, aes(x = PC1, y = PC2, color = Cluster)) +
-  geom_point(size = 2, alpha = 0.7) +
-  facet_wrap(~ cluster_kategorie$Shift_Kategorie) +
-  theme_minimal(base_size = 13) +
-  labs(
-    title = "PCA-Clustering facettiert nach biologischer Shift-Kategorie",
-    x = paste0("PC1 (", round(summary(pca)$importance[2,1]*100,1), "%)"),
-    y = paste0("PC2 (", round(summary(pca)$importance[2,2]*100,1), "%)")
-  ) +
-  scale_color_brewer(palette = "Set2")
-
-```
-
-
-```{r}
-# hier geht verbesserung vom ersten clustering weiter
-# Extremwerte nach PC1 oder PC2
-plot_df[which.max(abs(plot_df$PC1)), ]  # größter Ausreißer in PC1
-plot_df[which.max(abs(plot_df$PC2)), ]  # größter Ausreißer in PC2
-```
-
-```{r}
-outlier_index <- which.max(abs(plot_df$PC1))  # oder PC2, je nachdem
+outlier_index <- which.max(abs(plot_df$PC2))  # oder PC2, je nachdem
 df_clust_no_outlier <- df_clust[-outlier_index, ]
 scaled_data_no_outlier <- scale(df_clust_no_outlier[, vars])
 set.seed(42)
@@ -384,23 +409,6 @@ ggplot(df_clust, aes(x = Shift_Kategorie, y = Mass_kDa)) +
 
 ```{r}
 library(ggplot2)
-
-ggplot(df_clust, aes(x = Shift_Kategorie, y = Length_AA)) +
-  geom_violin(fill = "skyblue", alpha = 0.4) +
-  geom_boxplot(width = 0.2, outlier.shape = NA) +
-  theme_minimal() +
-  labs(title = "Länge nach Shift-Kategorie", x = "Shift-Kategorie", y = "Länge")
-
-```
-
-```{r}
-df_ergebnisse_phys$RBP_nach_Score <- ifelse(df_ergebnisse_phys$Shift_Kategorie == "kein_shift", "NO_RBP", "RBP")
-df_ergebnisse_phys$RBP_nach_Score <- factor(df_ergebnisse_phys$RBP_nach_Score, levels = c("NO_RBP", "RBP"))
-
-```
-
-```{r}
-library(ggplot2)
 library(dplyr)
 
 # PCA Ergebnis-Datenframe erstellen
@@ -427,79 +435,22 @@ ggplot(plot_df, aes(x = PC1, y = PC2, color = Shift_Kategorie, shape = as.factor
   guides(shape = guide_legend(title = "Cluster"))
 ```
 
-
 ```{r}
-library(ggplot2)
-library(dplyr)
-
-
-# Anzahl pro Kategorie + RBP-Status
-df_summary <- df_ergebnisse_phys %>%
-  group_by(Shift_Kategorie, RBP_nach_Score) %>%
-  summarise(n = n(), .groups = "drop")
-
-# Barplot
-ggplot(df_summary, aes(x = Shift_Kategorie, y = n, fill = RBP_nach_Score)) +
-  geom_col() +
-  scale_fill_manual(values = c("RBP" = "#0072B2", "non-RBP" = "#E69F00")) +
-  labs(title = "Anzahl an Proteinen pro Shift-Kategorie",
-       x = "Shift-Kategorie", y = "Anzahl Proteine", fill = "Protein-Typ") +
-  theme_minimal(base_size = 13) +
-  theme(axis.text.x = element_text(angle = 25, hjust = 1))
-
-```
-
-```{r}
-library(dplyr)
-library(ggplot2)
-
-# RBP-Status zuordnen
-df_ergebnisse_phys <- df_ergebnisse_phys %>%
-  mutate(RBP_Gruppe = ifelse(Shift_Kategorie == "kein_shift", "non-RBP", "RBP"))
-
-# Summen berechnen pro RBP_Gruppe + Shift_Kategorie
-df_summary <- df_ergebnisse_phys %>%
-  group_by(RBP_Gruppe, Shift_Kategorie) %>%
-  summarise(n = n(), .groups = "drop") %>%
-  mutate(
-    # Kategorie-Label mit Anzahl für die Legende
-    Kategorie_mit_n = paste0(Shift_Kategorie, " (", n, ")")
-  )
-
-ggplot(df_summary, aes(x = RBP_Gruppe, y = n, fill = Kategorie_mit_n)) +
-  geom_col(position = "stack") +
-  # Kein geom_text() → keine Zahlen in den Balken
-  scale_fill_manual(
-    values = setNames(
-      c("#E69F00", "#56B4E9", "#009E73", "violet"), 
-      df_summary$Kategorie_mit_n
-    )
-  ) +
-  labs(title = "Anzahl an Proteinen pro Shift-Kategorie",
-       x = "Protein-Typ", y = "Anzahl Proteine", fill = "Shift-Kategorie (n)") +
-  theme_minimal(base_size = 13)
-
-```
-
-```{r}
-# Tests für Zusammenhang zwischen pI und Kategorisierung in RBP/ nicht RBP
-
-# Wenn Verteilung normal (z.B. geprüft mit Shapiro-Wilk-Test):
-t.test(pI ~ RBP_nach_Score, data = df_ergebnisse_phys)
-
-# Wenn Verteilung nicht normal:
-wilcox.test(pI ~ RBP_nach_Score, data = df_ergebnisse_phys)
+# Tests für Zusammenhang zwischen pI + Zinc_Cont und Kategorisierung in RBP/ nicht RBP
 
 shapiro.test(df_ergebnisse_phys$pI[df_ergebnisse_phys$RBP_nach_Score == "RBP"]) # NV kann. angenommen werden
 
+# Wenn Verteilung normal (z.B. geprüft mit Shapiro-Wilk-Test):
+t.test(pI + Zinc_Count ~ RBP_nach_Score, data = df_ergebnisse_phys)
 ```
+
 ```{r}
 ggplot(df_ergebnisse_phys, aes(x = pI, fill = RBP_nach_Score)) +
   geom_density(alpha = 0.5) +
   theme_minimal() +
   labs(title = "pI-Verteilung bei RBP und Nicht-RBP", x = "pI", y = "Dichte")
-
 ```
+
 ```{r}
 install.packages('pROC')
 library(pROC)
@@ -509,7 +460,6 @@ plot(roc_result, col = "blue")
 auc(roc_result)
 
 ```
-
 
 ```{r}
 # Vergleich Kategorisierung nach Shift_Score vs. nach Datenbank
@@ -556,7 +506,7 @@ axis(2, at = c(0, 1), labels = rev(rownames(conf_matrix)))
 
 # Logistische Regression mit biologischen Eigenschaften in Bezug auf RBP/ NO_RBP
 ```{r}
-# Zielvariable als Faktor (0/1-artig, wichtig!)
+# Zielvariable als Faktor (0/1-artig)
 df_ergebnisse_phys$RBP_nach_Score = factor(df_ergebnisse_phys$RBP_nach_Score, levels = c("NO_RBP", "RBP"))
 
 # Logistische Regression für Masse, Länge, pI
@@ -572,7 +522,6 @@ df_pred$fitted_Status <- predict(model_logit, newdata = df_pred, type = "respons
 
 
 ```
-
 
 ```{r}
 # Wie gut stimmt das Modell mit der Klassifikation als RBP/ NO_RBP überein -> statistisch überprüfen
@@ -626,10 +575,8 @@ print(Testwerte)
 
 ```{r}
 # Wie gut stimmt das Modell mit der Klassifikation als RBP/ NO_RBP überein -> statistisch überprüfen
-# das gleiche nochmal aber für RBP_Status
+# das gleiche nochmal aber für RBP_Status (aus Datenbank)
 
-df_pred$fitted_Status <- ifelse(df_pred$fitted_Status > 0.5, "RBP", "NO_RBP")
-df_pred$fitted_Status <- factor(df_pred$fitted_Status, levels = c("NO_RBP", "RBP"))
 complete_idx <- complete.cases(df_ergebnisse_phys[, c("Zinc_Count", "pI")]) # Nur die Reihen ohne NA Werte 
 df_complete <- df_ergebnisse_phys[complete_idx, ] # als Datenframe
 
@@ -651,9 +598,9 @@ rownames(conf_matrix) <- c("Klassifikation: NO_RBP", "Klassifikation: RBP")
 print(conf_matrix)
 
 TN <- 378 
-FP <- 17
-FN <- 143
-TP <- 32
+FP <- 47
+FN <- 142 
+TP <- 2
 
 # Funktion zur Berechnung der Klassifikationsmetriken
 calc_metrics <- function(TP, TN, FP, FN) {
@@ -676,14 +623,101 @@ print(Testwerte)
 
 ```
 
+# Visualisierung der logistischen Regression
 ```{r}
-library(clipr)
+# Dichte von pI und Zinc_Count nach RBP Score
+library(ggplot2)
 
-# Beispiel: Deine DataPFrame-Spalte mit IDs
-id_list <- na.omit(RBP_Table$UniProt_ID)  # ersetze 'df' und 'UniProt_ID' nach Bedarf
+# Zinc_Count
+ggplot(df_ergebnisse_phys, aes(x = Zinc_Count, fill = RBP_nach_Score)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Dichteverteilung von Zinc_Count nach RBP Score",
+       x = "Zinc_Count", fill = "RBP_nach_Score") +
+  theme_minimal()
+
+# pI
+ggplot(df_ergebnisse_phys, aes(x = pI, fill = RBP_nach_Score)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Dichteverteilung von pI nach RBP Score",
+       x = "Isoelektrischer Punkt (pI)", fill = "RBP_nach_Score") +
+  theme_minimal()
 ```
 
 ```{r}
+# 2D Dichteverteilung -> eventuell noch besser bei verbesserter Funktion??
+df_plot <- df_ergebnisse_phys[complete.cases(df_ergebnisse_phys[, c("RBP_nach_Score", "Zinc_Count", "pI")]), ]
+
+ggplot(df_plot, aes(x = Zinc_Count, y = pI)) +
+  stat_density_2d(aes(fill = ..level..), geom = "polygon") +
+  facet_wrap(~RBP_nach_Score) +
+  scale_fill_viridis_c() +
+  labs(title = "2D-Dichteverteilung von Zinc_Count und pI nach RBP_Score",
+       x = "Zinc_Count", y = "pI") +
+  theme_minimal()
+```
+
+```{r}
+# vorhergesagte Wahrscheinlichkeit (auf Basis der Regreession) für RBP anhand von pI und Zink
+df_plot <- df_ergebnisse_phys[complete.cases(df_ergebnisse_phys[, c("RBP_nach_Score", "Zinc_Count", "pI")]), ]
+df_plot$predicted_prob <- predict(model_logit, type = "response")
+
+ggplot(df_plot, aes(x = Zinc_Count, y = pI, color = predicted_prob)) +
+  geom_point(size = 2, alpha = 0.7) +
+  scale_color_gradient(low = "#7E51A4", high = "#415961") +
+  labs(title = "Vorhergesagte Wahrscheinlichkeit für RBP",
+       x = "Zink-Finger Anzahl", y = "Isoelektrischer Punkt (pI)",
+       color = "P(RBP)") +
+  theme_minimal()
+```
+
+```{r}
+# Zusammenhang pI und Zink für RBP nach Score
+ggplot(df_ergebnisse_phys, aes(x = Zinc_Count, y = pI, color = RBP_nach_Score)) +
+  geom_point(alpha = 0.6) +
+  labs(x = "Zink-Finger-Anzahl", y = "Isoelektrischer Punkt (pI)", color = "RBP nach Score") +
+  theme_minimal()
+```
+
+```{r}
+# Zusammenhang pI und Zink für RBP Status (Datenbank) 
+# Regressionsmodell stimmt noch nicht sehr hiermit überein -> eventuell nach verbesserter Funktion?
+ggplot(df_ergebnisse_phys, aes(x = Zinc_Count, y = pI, color = RBP_Status)) +
+  geom_point(alpha = 0.6) +
+  labs(x = "Zink-Finger-Anzahl", y = "Isoelektrischer Punkt (pI)", color = "RBP Status") +
+  theme_minimal()
+```
+
+# Visualisieruung der Ergebnisse der Shift und RBP Klassifizierung
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# RBP-Status zuordnen
+df_ergebnisse_phys <- df_ergebnisse_phys %>%
+  mutate(RBP_Gruppe = ifelse(Shift_Kategorie == "kein_shift", "non-RBP", "RBP"))
+
+# Summen berechnen pro RBP_Gruppe + Shift_Kategorie
+df_summary <- df_ergebnisse_phys %>%
+  group_by(RBP_Gruppe, Shift_Kategorie) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  mutate(
+    # Kategorie-Label mit Anzahl für die Legende
+    Kategorie_mit_n = paste0(Shift_Kategorie, " (", n, ")")
+  )
+
+ggplot(df_summary, aes(x = RBP_Gruppe, y = n, fill = Kategorie_mit_n)) +
+  geom_col(position = "stack") +
+  # Kein geom_text() → keine Zahlen in den Balken
+  scale_fill_manual(
+    values = setNames(
+      c("#A786C2", "#8684C2", "#7396AD", "#728083","#DBCEE6"), 
+      df_summary$Kategorie_mit_n
+    )
+  ) +
+  labs(title = "Anzahl an Proteinen pro Shift-Kategorie",
+       x = "Protein-Typ", y = "Anzahl Proteine", fill = "Shift-Kategorie (n)") +
+  theme_minimal(base_size = 13)
 
 ```
 
