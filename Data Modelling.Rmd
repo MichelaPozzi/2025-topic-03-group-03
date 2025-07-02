@@ -623,6 +623,33 @@ print(Testwerte)
 
 ```
 
+```{r}
+library(dplyr)
+
+df_ergebnisse_phys %>%
+  group_by(Shift_Kategorie) %>%
+  summarise(
+    mittlerer_Zinc_Count = mean(Zinc_Count, na.rm = TRUE),
+    median_Zinc_Count = median(Zinc_Count, na.rm = TRUE),
+    n = n()
+  ) %>%
+  arrange(desc(mittlerer_Zinc_Count))
+
+```
+```{r}
+library(dplyr)
+
+df_ergebnisse_phys %>%
+  group_by(Shift_Kategorie) %>%
+  summarise(
+    mittlerer_pI = mean(pI, na.rm = TRUE),
+    median_pI = median(pI, na.rm = TRUE),
+    n = n()
+  ) %>%
+  arrange(desc(mittlerer_pI))
+
+```
+
 # Visualisierung der logistischen Regression
 ```{r}
 # Dichte von pI und Zinc_Count nach RBP Score
@@ -719,5 +746,12 @@ ggplot(df_summary, aes(x = RBP_Gruppe, y = n, fill = Kategorie_mit_n)) +
        x = "Protein-Typ", y = "Anzahl Proteine", fill = "Shift-Kategorie (n)") +
   theme_minimal(base_size = 13)
 
+```
+```{r}
+df_ergebnisse_phys$RBP_nach_Score = factor(df_ergebnisse_phys$RBP_nach_Score, levels = c("NO_RBP", "RBP"))
+model_Zinc = lm(Zinc_Count ~ RBP_nach_Score + pI,
+                   data = df_ergebnisse_phys,
+                   family = "binomial")
+summary(model_logit)
 ```
 
