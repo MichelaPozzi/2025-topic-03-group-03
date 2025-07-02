@@ -372,7 +372,7 @@ ggplot(df_clust, aes(x = Shift_Kategorie, y = Length_AA)) +
 ```
 
 ```{r}
-df_ergebnisse_phys$RBP_nach_Score <- ifelse(df_ergebnisse_phys$Shift_Kategorie == "kein_shift", "NO_RBP", "RBP")
+df_ergebnisse_phys$RBP_nach_Score <- ifelse(df_ergebnisse_phys$Kategorie == "kein_shift", "NO_RBP", "RBP")
 df_ergebnisse_phys$RBP_nach_Score <- factor(df_ergebnisse_phys$RBP_nach_Score, levels = c("NO_RBP", "RBP"))
 
 ```
@@ -535,10 +535,10 @@ axis(2, at = c(0, 1), labels = rev(rownames(conf_matrix)))
 # Logistische Regression mit biologischen Eigenschaften in Bezug auf RBP/ NO_RBP
 ```{r}
 # Zielvariable als Faktor (0/1-artig, wichtig!)
-df_ergebnisse_phys$RBP_Status = factor(df_ergebnisse_phys$RBP_Status, levels = c("NO_RBP", "RBP"))
+df_ergebnisse_phys$RBP_nach_Score = factor(df_ergebnisse_phys$RBP_nach_Score, levels = c("NO_RBP", "RBP"))
 
 # Logistische Regression für Masse, Länge, pI
-model_logit = glm(RBP_Status ~ Mass_kDa + Length_AA + pI,
+model_logit = glm(RBP_nach_Score ~ Zinc_Count + pI,
                    data = df_ergebnisse_phys,
                    family = "binomial")
 summary(model_logit)
@@ -547,14 +547,6 @@ df_ergebnisse_phys$fitted_Status = predict(model_logit, newdata = df_ergebnisse_
 
 ```
 
-```{r}
-# Logistische Regression für Zinc_Count
-model_phys <- glm(RBP_Status ~ Zinc_Count + Coil_Count,
-                   data = df_ergebnisse_phys,
-                   family = "binomial")
-
-summary(model_phys)
-```
 
 ```{r}
 conf_matrix = table(df_ergebnisse_phys$RBP_Status, df_ergebnisse_phys$fittet_Status)
