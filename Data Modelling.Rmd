@@ -164,7 +164,7 @@ df_ergebnisse_phys$RBP_Status = ifelse(df_ergebnisse_phys$Listing_Count >= 5, "R
 
 ```{r}
 # Regression mit den physikalischen Eigenschaften bezogen auf den von uns bestimmten shift_score
-model = lm(Kategorie ~ pI + TM_Count , data = df_ergebnisse_phys)
+model = lm(Kategorie ~ pI, data = df_ergebnisse_phys)
 summary(model)
 # Modell hat keinen guten R2 Wert also sind die 3 eigenschaften nicht perfekt, um den score vorauszusagen
 ```
@@ -543,21 +543,35 @@ model_logit = glm(RBP_nach_Score ~ Zinc_Count + pI,
                    family = "binomial")
 summary(model_logit)
 
-df_ergebnisse_phys$fitted_Status = predict(model_logit, newdata = df_ergebnisse_phys)
+
+df_pred <- df_ergebnisse_phys[complete.cases(df_ergebnisse_phys[, c("Zinc_Count", "pI")]), ]
+df_pred$fitted_Status <- predict(model_logit, newdata = df_pred, type = "response")
+
+
 
 ```
 
 
 ```{r}
-conf_matrix = table(df_ergebnisse_phys$RBP_Status, df_ergebnisse_phys$fittet_Status)
-colnames(conf_matrix) <- c("Vorhergesagt_NO_RBP", "Vorhergesagt_RBP")
-rownames(conf_matrix) <- c("Tatsächlich_NO_RBP", "Tatsächlich_RBP")
+df_pred$fitted_Status <- ifelse(df_pred$fitted_Status > 0.5, "RBP", "NO_RBP")
+df_pred$fitted_Status <- factor(df_pred$fitted_Status, levels = c("NO_RBP", "RBP"))
+
+complete_idx <- complete.cases(df_ergebnisse_phys[, c("Zinc_Count", "pI")])
+
+# Confusion Matrix mit passenden Zeilen aus beiden Dataframes
+conf_matrix <- table(
+  True = df_ergebnisse_phys$RBP_nach_Score[complete_idx],
+  Predicted = df_pred$fitted_Status
+)
+colnames(conf_matrix) <- c("Vom Modell vorhergesagt: NO_RBP", "Vom Modell vorhergesagt: RBP")
+rownames(conf_matrix) <- c("Klassifikation: NO_RBP", "Klassifikation: RBP")
+
 conf_matrix
 
-TN <- 1788
-FP <- 789
-FN <- 2479
-TP <- 2003
+TN <- 377 
+FP <- 17
+FN <- 143
+TP <- 32
 
 # Funktion zur Berechnung der Klassifikationsmetriken
 calc_metrics <- function(TP, TN, FP, FN) {
@@ -576,17 +590,36 @@ calc_metrics <- function(TP, TN, FP, FN) {
 }
 
 Testwerte <- calc_metrics(TP, TN, FP, FN)
-
-# Ausgabe
 print(Testwerte)
 
-image(
-  t(apply(conf_matrix, 2, rev)),           # Matrix drehen für korrektes Layout
-  axes = FALSE, col = heat.colors(10),
-  main = "Konfusionsmatrix (Heatmap)"
+```
+
+```{r}
+# 1) Indizes für vollständige Werte (keine NA in den Prädiktoren)
+complete_idx <- complete.cases(df_ergebnisse_phys[, c("Zinc_Count", "pI")])
+
+# 2) Datenframe mit vollständigen Fällen (RBP_nach_Score und Prädiktoren)
+df_complete <- df_ergebnisse_phys[complete_idx, ]
+
+# 3) Vorhersagen für diese vollständigen Fälle
+df_complete$fitted_Status <- predict(model_logit, newdata = df_complete, type = "response")
+
+# 4) Binäre Klassifikation nach Schwellenwert 0.5
+df_complete$fitted_Status <- ifelse(df_complete$fitted_Status > 0.5, "RBP", "NO_RBP")
+df_complete$fitted_Status <- factor(df_complete$fitted_Status, levels = c("NO_RBP", "RBP"))
+
+# 5) Confusion Matrix erstellen
+conf_matrix <- table(
+  True = df_complete$RBP_nach_Score,
+  Predicted = df_complete$fitted_Status
 )
-axis(1, at = c(0, 1), labels = colnames(conf_matrix))
-axis(2, at = c(0, 1), labels = rev(rownames(conf_matrix)))
+
+# Optional Spalten und Zeilen beschriften
+colnames(conf_matrix) <- c("Vom Modell vorhergesagt: NO_RBP", "Vom Modell vorhergesagt: RBP")
+rownames(conf_matrix) <- c("Klassifikation: NO_RBP", "Klassifikation: RBP")
+
+print(conf_matrix)
+
 ```
 
 ```{r}
@@ -596,4 +629,25 @@ library(clipr)
 id_list <- na.omit(RBP_Table$UniProt_ID)  # ersetze 'df' und 'UniProt_ID' nach Bedarf
 ```
 
+```{r}
+# Nur vollständige Fälle
+df_plot <- df_ergebnisse_phys[complete.cases(df_ergebnisse_phys[, c("RBP_nach_Score", "Zinc_Count", "pI")]), ]
+df_plot$predicted_prob <- predict(model_logit, type = "response")
+
+ggplot(df_plot, aes(x = Zinc_Count, y = pI, color = predicted_prob)) +
+  geom_point(size = 2, alpha = 0.7) +
+  scale_color_gradient(low = "blue", high = "red") +
+  labs(title = "Vorhergesagte Wahrscheinlichkeit für RBP",
+       x = "Zink-Finger Anzahl", y = "Isoelektrischer Punkt (pI)",
+       color = "P(RBP)") +
+  theme_minimal()
+```
+
+```{r}
+ggplot(df_ergebnisse_phys, aes(x = Zinc_Count, y = pI)) +
+  stat_density_2d(aes(fill = ..level..), geom = "polygon") +
+  facet_wrap(~RBP_nach_Score) +
+  labs(x = "Zink-Finger", y = "pI", title = "2D-Dichte von Zinc & pI nach RBP-Status") +
+  theme_minimal()
+```
 
