@@ -241,6 +241,306 @@ cluster_df = data.frame(Sample = colnames(MS_Table_norm),
                         Cluster = cluster_assignment)
 write.csv(cluster_df, "Cluster_Zuordnung.csv", row.names = FALSE)
 ```
+##Prozentzahlen für PC1 und PC2 für "K-Means Clustering auf PCA (k=3)" ergänzt 
+```{r kmeans_pca_clustering, message=FALSE, warning=FALSE}
+# -------------------------
+# PCA und K-Means
+# -------------------------
+pca <- prcomp(MS_Table_norm, center = TRUE, scale. = TRUE)
+
+# Varianz-Anteile berechnen
+prop.variance <- (pca$sdev)^2 / sum(pca$sdev^2)
+pc1_var <- round(prop.variance[1] * 100, 1)
+pc2_var <- round(prop.variance[2] * 100, 1)
+
+# Auswahl der ersten 5 PCs fürs Clustering
+pca_data <- pca$x[, 1:5]
+
+# K-Means mit k=6
+set.seed(123)
+km <- kmeans(pca_data, centers = 6, nstart = 25)
+cluster_assignment <- km$cluster
+
+# -------------------------
+# Poster-Farbpalette
+# -------------------------
+cluster_colors <- c(
+  "#7E51A4", "#504DA4", "#485571",
+  "#7396AD", "#DBCEE6", "#A9B3B5"
+)
+
+# -------------------------
+# Plot
+# -------------------------
+plot(
+  pca$x[, 1], pca$x[, 2],
+  col = cluster_colors[cluster_assignment],
+  pch = 19,
+  xlab = paste0("PC1 (", pc1_var, "% Varianz)"),
+  ylab = paste0("PC2 (", pc2_var, "% Varianz)"),
+  main = "K-Means Clustering auf PCA (k=6)",
+  bg = "#DFE3EA"  # Hintergrundfarbe passend aus deinem Setup
+)
+
+# Konvexhüllen einzeichnen
+library(grDevices)
+for (k in 1:max(cluster_assignment)) {
+  cluster_points <- pca$x[cluster_assignment == k, 1:2]
+  if (nrow(cluster_points) >= 3) {
+    hull_indices <- chull(cluster_points)
+    hull_indices <- c(hull_indices, hull_indices[1])
+    polygon(
+      cluster_points[hull_indices, ],
+      border = cluster_colors[k],
+      col = adjustcolor(cluster_colors[k], alpha.f = 0.4),
+      lwd = 2
+    )
+  }
+}
+
+```
+
+## K-Means Clustering auf die obigen PCA-Ergebnissen angewandt 
+
+```{r kmeans_pca_clustering, message=FALSE, warning=FALSE}
+
+# -------------------------
+# PCA
+# -------------------------
+pca <- prcomp(MS_Table_norm, center = TRUE, scale. = TRUE)
+
+# Varianz-Anteile berechnen
+prop.variance <- (pca$sdev)^2 / sum(pca$sdev^2)
+pc1_var <- round(prop.variance[1] * 100, 1)
+pc2_var <- round(prop.variance[2] * 100, 1)
+
+# Varianzanteile anzeigen
+barplot(prop.variance[1:10], main = "Varianzanteile (Top 10 PCs)", ylab = "Proportion")
+
+# Auswahl der ersten 5 Hauptkomponenten für Clustering
+pca_data <- pca$x[, 1:5]
+
+# -------------------------
+# Poster-Farbpalette
+# -------------------------
+cluster_colors <- c(
+  "#7E51A4", "#504DA4", "#485571",
+  "#7396AD", "#DBCEE6", "#A9B3B5"
+)
+
+# -------------------------
+# Clusteranzahl bestimmen (Elbow/Silhouette)
+# -------------------------
+library(factoextra)
+library(cluster)
+
+elbow_plot <- fviz_nbclust(pca_data, kmeans, method = "wss") +
+  ggtitle("Elbow-Methode – optimale Clusteranzahl") +
+  geom_vline(xintercept = 6, linetype = 2, color = "blue")
+
+print(elbow_plot)
+
+fviz_nbclust(pca_data, kmeans, method = "silhouette") +
+  ggtitle("Silhouette-Methode – optimale Clusteranzahl")
+
+# -------------------------
+# K-Means Clustering (k = 6)
+# -------------------------
+set.seed(123)
+km <- kmeans(pca_data, centers = 6, nstart = 25)
+cluster_assignment <- km$cluster
+
+# -------------------------
+# PCA-Plot mit Clustern
+# -------------------------
+plot(
+  pca$x[, 1], pca$x[, 2],
+  col = cluster_colors[cluster_assignment],
+  pch = 19,
+  xlab = paste0("PC1 (", pc1_var, "% Varianz)"),
+  ylab = paste0("PC2 (", pc2_var, "% Varianz)"),
+  main = "K-Means Clustering auf PCA (k=6)"
+)
+
+# Konvexhüllen
+library(grDevices)
+for (k in 1:max(cluster_assignment)) {
+  cluster_points <- pca$x[cluster_assignment == k, 1:2]
+  if (nrow(cluster_points) >= 3) {
+    hull_indices <- chull(cluster_points)
+    hull_indices <- c(hull_indices, hull_indices[1])
+    polygon(
+      cluster_points[hull_indices, ],
+      border = cluster_colors[k],
+      col = adjustcolor(cluster_colors[k], alpha.f = 0.4),
+      lwd = 2
+    )
+  }
+}
+
+# -------------------------
+# Silhouette-Plot
+# -------------------------
+n_obs <- nrow(pca_data)
+sample_threshold <- 1000
+
+if (n_obs > sample_threshold) {
+  set.seed(42)
+  sample_idx <- sample(1:n_obs, 500)
+  pca_sample <- pca_data[sample_idx, ]
+  cluster_sample <- cluster_assignment[sample_idx]
+  dist_sample <- dist(pca_sample)
+  sil <- silhouette(cluster_sample, dist_sample)
+  message("Der Silhouette-Plot basiert auf einer Stichprobe von 500 Beobachtungen")
+} else {
+  dist_matrix <- dist(pca_data)
+  sil <- silhouette(cluster_assignment, dist_matrix)
+}
+
+library(factoextra)
+fviz_silhouette(sil, palette = cluster_colors) +
+  ggtitle("Silhouette-Plot für K-Means Clustering")
+
+# -------------------------
+# Export Cluster-Zuordnung
+# -------------------------
+cluster_df <- data.frame(
+  Sample = colnames(MS_Table_norm),
+  Cluster = cluster_assignment
+)
+write.csv(cluster_df, "Cluster_Zuordnung.csv", row.names = FALSE)
+```
+
+VOLLSTÄNDIGER CODE FÜR K-MEANS CLUSTERING  
+## K-Means Clustering auf PCA mit Silhouette-Breiten-Anzeige
+```{r kmeans_pca_clustering, message=FALSE, warning=FALSE}
+
+# -------------------------
+# Pakete
+# -------------------------
+library(factoextra)
+library(cluster)
+library(ggplot2)
+
+# -------------------------
+# PCA auf normierter Tabelle
+# -------------------------
+pca <- prcomp(MS_Table_norm, center = TRUE, scale. = TRUE)
+
+# Varianz-Anteile berechnen
+prop.variance <- (pca$sdev)^2 / sum(pca$sdev^2)
+pc1_var <- round(prop.variance[1] * 100, 1)
+pc2_var <- round(prop.variance[2] * 100, 1)
+
+# -------------------------
+# PCA-Daten für Clustering
+# -------------------------
+pca_data <- pca$x[, 1:5]
+
+# -------------------------
+# Poster-Farbpalette
+# -------------------------
+cluster_colors <- c(
+  "#7E51A4", "#504DA4", "#485571",
+  "#7396AD", "#DBCEE6", "#A9B3B5"
+)
+
+# -------------------------
+# K-Means Clustering
+# -------------------------
+set.seed(123)
+km <- kmeans(pca_data, centers = 6, nstart = 25)
+cluster_assignment <- km$cluster
+
+# -------------------------
+# PCA Plot mit Clustern und Konvexhüllen
+# -------------------------
+plot(
+  pca$x[, 1], pca$x[, 2],
+  col = cluster_colors[cluster_assignment],
+  pch = 19,
+  xlab = paste0("PC1 (", pc1_var, "% Varianz)"),
+  ylab = paste0("PC2 (", pc2_var, "% Varianz)"),
+  main = "K-Means Clustering auf PCA (k=6)"
+)
+
+# Konvexhüllen einzeichnen
+for (k in 1:max(cluster_assignment)) {
+  cluster_points <- pca$x[cluster_assignment == k, 1:2]
+  if (nrow(cluster_points) >= 3) {
+    hull_indices <- chull(cluster_points)
+    hull_indices <- c(hull_indices, hull_indices[1])
+    polygon(
+      cluster_points[hull_indices, ],
+      border = cluster_colors[k],
+      col = adjustcolor(cluster_colors[k], alpha.f = 0.3),
+      lwd = 2
+    )
+  }
+}
+
+# -------------------------
+# Silhouette-Plot mit Zahlenwerten
+# -------------------------
+
+# Stichprobenlogik bei großen Datensätzen
+n_obs <- nrow(pca_data)
+sample_threshold <- 1000
+
+if (n_obs > sample_threshold) {
+  set.seed(42)
+  sample_idx <- sample(1:n_obs, 500)
+  pca_sample <- pca_data[sample_idx, ]
+  cluster_sample <- cluster_assignment[sample_idx]
+  dist_sample <- dist(pca_sample)
+  sil <- silhouette(cluster_sample, dist_sample)
+  message("Der Silhouette-Plot basiert auf einer Stichprobe von 500 Beobachtungen")
+} else {
+  dist_matrix <- dist(pca_data)
+  sil <- silhouette(cluster_assignment, dist_matrix)
+}
+
+# Durchschnittliche Silhouette-Breiten berechnen
+avg_sil_width <- mean(sil[, "sil_width"])
+avg_sil_per_cluster <- tapply(sil[, "sil_width"], sil[, "cluster"], mean)
+
+# Text für Annotation
+label_text <- paste0("Durchschn. Silhouette-Breite: ", round(avg_sil_width, 3), "\n",
+                     paste0("Cluster ", names(avg_sil_per_cluster), ": ",
+                            round(avg_sil_per_cluster, 3),
+                            collapse = "\n"))
+
+# Plot erstellen
+sil_plot <- fviz_silhouette(sil, palette = cluster_colors) +
+  ggtitle("Silhouette-Plot für K-Means Clustering") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# Annotation hinzufügen
+sil_plot +
+  annotate("text",
+           x = Inf, y = Inf,
+           label = label_text,
+           hjust = 1.05, vjust = 1.05,
+           size = 3,
+           fontface = "italic")
+
+# -------------------------
+# Cluster-Zuordnung exportieren
+# -------------------------
+cluster_df <- data.frame(Sample = colnames(MS_Table_norm),
+                         Cluster = cluster_assignment)
+write.csv(cluster_df, "Cluster_Zuordnung.csv", row.names = FALSE)
+```
+
+
+
+
+
+
+
+
+
+
 
 ## K-Means Clustering auf die obigen PCA-Ergebnissen angewandt => Wie schwarzen Umkreisungen Größe ändern? => bei stat-eclipse => level  => Zahlenwert anpassen
 
@@ -363,6 +663,7 @@ cluster_df = data.frame(Sample = colnames(MS_Table_norm),
                         Cluster = cluster_assignment)
 write.csv(cluster_df, "Cluster_Zuordnung.csv", row.names = FALSE)
 ```
+
 
 ##Plotvisualisierungen für die Data Exploration 
 # Heatmap für Replikatenvergleich  
@@ -490,9 +791,59 @@ legend("topright", legend = c("Control", "RNase"),
        col = c("green4", "red"), lty = 1, lwd = 2, bty = "n", cex = 0.9)
 ```
 
+## DATA EXPLORATION VISUALISIERUNG  
+
+```{r}
+# Index
+zeile <- 'EI2BB_HUMAN'
+
+# x-Werte (Fraktionen)
+x <- 1:25
+
+# y-Werte
+y_control <- Ctrl1_norm[zeile,]
+y_rnase <- RNAse1_norm[zeile,]
+
+# Y-Achsen-Limits berechnen
+ylim_bereich <- range(c(y_control, y_rnase), na.rm = TRUE)
+
+# Leerer Plot
+plot(x, y_control, type = "n",
+     xlab = "", ylab = "Protein amount",
+     main = expression(bold("Quantitative RNA-dependent shift")),
+     ylim = ylim_bereich)
+
+# Grid
+grid(nx = 25, ny = 10, col = "lightgray", lty = "solid")
+
+# Fläche RNase (rot, links)
+polygon(c(x, rev(x)), c(y_rnase, rep(0, length(x))),
+        col = rgb(255, 0, 0, 80, maxColorValue = 255),  # Transparenz
+        border = NA)
+
+# Fläche Control (grün, rechts)
+polygon(c(x, rev(x)), c(y_control, rep(0, length(x))),
+        col = rgb(0, 255, 0, 50, maxColorValue = 255),
+        border = NA)
+
+# Linien
+lines(x, y_rnase, col = "#7396AD", lwd = 2)
+lines(x, y_control, col = "#DBCEE6", lwd = 2)
+
+# Prozentwerte
+text(x[which.max(y_rnase)], max(y_rnase) * 0.9, "95%", col = "black", font = 2, cex = 1.2)
+text(x[which.max(y_control)], max(y_control) * 0.9, "85%", col = "black", font = 2, cex = 1.2)
+
+# Pfeil (von RNase zu Control)
+arrows(x0 = which.max(y_rnase), y0 = max(y_rnase) + 0.02,
+       x1 = which.max(y_control), y1 = max(y_control) + 0.02,
+       length = 0.1, lwd = 2, col = "black")
+
+# Legende
+legend("topright", legend = c("Control", "RNase"),
+       col = c("#DBCEE6", "#7396AD"), lty = 1, lwd = 2, bty = "n", cex = 0.9)
+```
+
 ```{r}
 df_ergebnisse
 ```
-
-
-
