@@ -555,173 +555,22 @@ wenn horizontale Differnez = 0 aber (veränderung der Anzahl an peaks):
 
 
 
-
-### Möglichkeit 1
-
-```{#r}
-klassifiziere_protein_korrekt <- function(row) {
-  parse_numeric_vector <- function(x) {
-    if (is.na(x) || is.null(x)) return(numeric(0))
-    suppressWarnings(as.numeric(unlist(strsplit(x, ";"))))
-  }
-
-  # --- p-Werte prüfen ---
-  p_vals <- parse_numeric_vector(row[["p_Werte"]])
-  p_vals_vorhanden <- length(p_vals) > 0 && !all(is.na(p_vals))
-  signifikant <- p_vals_vorhanden && any(p_vals < 0.05, na.rm = TRUE)
-
-  score <- 0
-  richtung <- NA
-
-  # --- Shift-Index ---
-  shift_idx <- suppressWarnings(as.numeric(row[["Shift_idx"]]))
-  if (!is.na(shift_idx)) {
-    score <- score + min(2, abs(shift_idx))
-    richtung <- ifelse(shift_idx > 0, "right",
-                       ifelse(shift_idx < 0, "left", richtung))
-  }
-
-  # --- Anzahl Maxima ---
-  max_kontrolle <- suppressWarnings(as.numeric(row[["Anzahl_Kontroll_Maxima"]]))
-  max_rnase <- suppressWarnings(as.numeric(row[["Anzahl_RNase_Maxima"]]))
-  if (!is.na(max_kontrolle) && !is.na(max_rnase)) {
-    diff_maxima <- abs(max_rnase - max_kontrolle)
-    score <- score + ifelse(diff_maxima >= 2, 2, ifelse(diff_maxima == 1, 1, 0))
-    if (is.na(richtung) && diff_maxima > 0) {
-      richtung <- ifelse(max_rnase > max_kontrolle, "right", "left")
-    }
-  }
-
-  # --- Amplituden-Betrachtung NUR wenn erlaubt ---
-  if (signifikant) {
-    sum_gewinn <- suppressWarnings(as.numeric(row[["Summierter_Gewinn"]]))
-    sum_verlust <- suppressWarnings(as.numeric(row[["Summierter_Verlust"]]))
-    amplitude_total <- sum_gewinn + sum_verlust
-    if (!is.na(amplitude_total) && abs(amplitude_total) > 1) {
-      score <- score + 1
-    }
-
-    verlust_vec <- parse_numeric_vector(row[["Verlust_Amplituden"]])
-    gewinn_vec <- parse_numeric_vector(row[["Gewinn_Amplituden"]])
-    if (length(verlust_vec) > 0 && length(gewinn_vec) > 0) {
-      v_idx <- which.max(verlust_vec)
-      g_idx <- which.max(gewinn_vec)
-      if (!is.na(v_idx) && !is.na(g_idx)) {
-        if (v_idx < g_idx) {
-          richtung <- "right"
-        } else if (g_idx < v_idx) {
-          richtung <- "left"
-        }
-        score <- score + 1
-      }
-    }
-  }
-
-  # --- Klassifikation ---
-  if (is.na(richtung)) richtung <- "unbekannt"
-
-  if (score >= 5) {
-    return(paste0("starker_", richtung, "_shift"))
-  } else if (score >= 3) {
-    return(paste0("moderater_", richtung, "_shift"))
-#  } else if (score >= 1) {
-#    return(paste0("schwacher_", richtung, "_shift"))
-  } else {
-    return("kein_shift")
-  }
-}
-
-
-df_ergebnisse$Kategorie <- apply(df_ergebnisse, 1, klassifiziere_protein_korrekt)
-
-
-```
-
-
-
-
-### Möglichkeit 2
-
-```{#r}
-kategorisiere_protein_shift <- function(df_ergebnisse) {
-  
-  # Lege neue Spalten an
-  df_ergebnisse$Shift_Score <- NA_real_
-  df_ergebnisse$Shift_Typ   <- NA_character_
-  
-  for (i in seq_len(nrow(df_ergebnisse))) {
-    row <- df_ergebnisse[i, ]
-    
-    ## 1) Grundzahlen ------------------------------
-    shift_idx        <- as.numeric(row$Shift_idx)
-    verlust          <- as.numeric(row$Summierter_Verlust)
-    gewinn           <- as.numeric(row$Summierter_Gewinn)
-    n_ctrl_max       <- as.numeric(row$Anzahl_Kontroll_Maxima)
-    n_rnase_max      <- as.numeric(row$Anzahl_RNase_Maxima)
-    
-    ## 2) Flächen (Strings → numerische Vektoren) ---
-    flaeche_k <- as.numeric(strsplit(as.character(row$Fläche_Kontrolle), ";")[[1]])
-    flaeche_r <- as.numeric(strsplit(as.character(row$Fläche_RNase  ), ";")[[1]])
-    delta_flaeche <- sum(flaeche_r, na.rm = TRUE) - sum(flaeche_k, na.rm = TRUE)
-    
-    ## 3) p-Werte ----------------------------------
-    p_vec_raw <- unlist(strsplit(as.character(row$p_Werte), ";"))
-    # leere Zeichen als NA behandeln
-    p_vec     <- suppressWarnings(as.numeric(p_vec_raw))
-    sig_count <- sum(p_vec < 0.05, na.rm = TRUE)
-    all_na_p  <- all(is.na(p_vec) | p_vec_raw == "")
-    
-    ## 4) Score aufbauen ---------------------------
-    score <- 0
-    if (shift_idx  > 0)                 score <- score + 1
-    if (shift_idx  < 0)                 score <- score - 1
-    if (gewinn     > verlust)           score <- score + 1
-    if (verlust    > gewinn)            score <- score - 1
-    if (n_rnase_max > n_ctrl_max)       score <- score + 1
-    if (n_ctrl_max  > n_rnase_max)      score <- score - 1
-    if (delta_flaeche > 0)              score <- score + 1
-    if (delta_flaeche < 0)              score <- score - 1
-    if (sig_count    > 0)               score <- score - 1   # Kontrolle > RNase
-    if (all_na_p)                       score <- score + 1   # Peak nur in RNase
-    
-    ## 5) Kategorie zuweisen -----------------------
-    shift_typ <- dplyr::case_when(
-      score >=  3 ~ "Strong Right Shift",
-      score >=  1 ~ "Moderate Right Shift",
-      score == 0  ~ "No Clear Shift",
-      score <= -3 ~ "Strong Left Shift",
-      TRUE        ~ "Moderate Left Shift"   # −1 oder −2
-    )
-    
-    ## 6) in DataFrame zurückschreiben -------------
-    df_ergebnisse$Shift_Score[i] <- score
-    df_ergebnisse$Shift_Typ[i]   <- shift_typ
-  }
-  
-  df_ergebnisse
-}
-
-## ---- Anwendung ---------------------------------
-df_ergebnisse <- kategorisiere_protein_shift(df_ergebnisse)
-
-```
-
-
-
-
-### Möglichkeit 3
-
-```{#r}
+```{r}
 klassifiziere_protein_shift_streng_v2 <- function(row) {
   parse_numeric_vector <- function(x) {
-    if (is.na(x) || is.null(x)) return(numeric(0))
-    suppressWarnings(as.numeric(unlist(strsplit(x, ";"))))
+    if (is.na(x) || is.null(x) || x == "") return(numeric(0))
+    suppressWarnings(as.numeric(unlist(strsplit(as.character(x), ";"))))
+  }
+
+  get_centroid <- function(x) {
+    if (length(x) == 0 || all(is.na(x)) || all(x == 0)) return(NA_real_)
+    weighted.mean(seq_along(x), x, na.rm = TRUE)
   }
 
   score <- 0
   richtung <- NA
-
-  # 1) Shift_idx (bis max 2 Punkte)
+  
+  ### 1) Shift_idx (max 2 Punkte)
   shift_idx <- suppressWarnings(as.numeric(row[["Shift_idx"]]))
   if (!is.na(shift_idx)) {
     if (abs(shift_idx) >= 2) {
@@ -732,8 +581,8 @@ klassifiziere_protein_shift_streng_v2 <- function(row) {
       richtung <- ifelse(shift_idx > 0, "right", "left")
     }
   }
-
-  # 2) Maxima Unterschiede (deutlicher Unterschied +2 Punkte, kleiner 1 Punkt)
+  
+  ### 2) Maxima Unterschiede (max 2 Punkte)
   max_kontrolle <- suppressWarnings(as.numeric(row[["Anzahl_Kontroll_Maxima"]]))
   max_rnase <- suppressWarnings(as.numeric(row[["Anzahl_RNase_Maxima"]]))
   if (!is.na(max_kontrolle) && !is.na(max_rnase)) {
@@ -748,48 +597,58 @@ klassifiziere_protein_shift_streng_v2 <- function(row) {
     }
   }
 
-  # 3) p-Werte interpretieren
+  ### 3) p-Werte (Signifikanz gibt PLUS Punkte)
   p_vals <- parse_numeric_vector(row[["p_Werte"]])
   p_vals_vorhanden <- length(p_vals) > 0 && !all(is.na(p_vals))
   signifikant <- p_vals_vorhanden && any(p_vals < 0.05, na.rm = TRUE)
-
-  # Wenn signifikante p-Werte existieren (Kontrolle > RNase), deutet das gegen rechts shift => Score reduzieren
   if (signifikant) {
-    score <- score - 2
-  }
-
-  # Falls keine p-Werte (Peak nur in RNase), Hinweis auf Rechts-Shift +1 Punkt
-  if (!p_vals_vorhanden) {
+    score <- score + 2
+  } else if (!p_vals_vorhanden) {
     score <- score + 1
-    if (is.na(richtung)) richtung <- "right"
+    if (is.na(richtung)) richtung <- "right" # default wenn keine Info
   }
-
-  # 4) Flächen nur werten, wenn signifikante p-Werte vorliegen (sonst ignorieren)
-  if (signifikant) {
-    flaeche_k <- parse_numeric_vector(row[["Fläche_Kontrolle"]])
-    flaeche_r <- parse_numeric_vector(row[["Fläche_RNase"]])
-    delta_flaeche <- sum(flaeche_r, na.rm = TRUE) - sum(flaeche_k, na.rm = TRUE)
-    if (!is.na(delta_flaeche)) {
-      if (abs(delta_flaeche) > 10) {  # Schwellenwert anheben (vorher zu klein)
+  
+  ### 4) Flächenbewertung (immer berücksichtigen)
+  flaeche_k <- parse_numeric_vector(row[["Fläche_Kontrolle"]])
+  flaeche_r <- parse_numeric_vector(row[["Fläche_RNase"]])
+  delta_flaeche <- sum(flaeche_r, na.rm = TRUE) - sum(flaeche_k, na.rm = TRUE)
+  if (!is.na(delta_flaeche)) {
+    if (abs(delta_flaeche) > 30) {
+      score <- score + 2
+      if (is.na(richtung)) richtung <- ifelse(delta_flaeche > 0, "right", "left")
+    } else if (abs(delta_flaeche) > 15) {
+      score <- score + 1
+      if (is.na(richtung)) richtung <- ifelse(delta_flaeche > 0, "right", "left")
+    }
+    # Sonderfall: shift_idx == 0 aber große Flächenänderung
+    if (!is.na(shift_idx) && shift_idx == 0 && abs(delta_flaeche) > 30) {
+      score <- score + 1
+    }
+    # Zentroidenvergleich
+    zentroid_k <- get_centroid(flaeche_k)
+    zentroid_r <- get_centroid(flaeche_r)
+    if (!is.na(zentroid_k) && !is.na(zentroid_r)) {
+      centroid_diff <- zentroid_r - zentroid_k
+      if (abs(centroid_diff) >= 2) {
         score <- score + 1
-        if (is.na(richtung)) richtung <- ifelse(delta_flaeche > 0, "right", "left")
+        if (is.na(richtung)) richtung <- ifelse(centroid_diff > 0, "right", "left")
       }
     }
   }
-
-  # 5) Summierter Gewinn/Verlust (erst werten, wenn p signifikant)
+  
+  ### 5) Summierter Gewinn/Verlust (nur wenn signifikant)
   if (signifikant) {
     sum_gewinn <- suppressWarnings(as.numeric(row[["Summierter_Gewinn"]]))
     sum_verlust <- suppressWarnings(as.numeric(row[["Summierter_Verlust"]]))
     if (!is.na(sum_gewinn) && !is.na(sum_verlust)) {
       diff_sum <- sum_gewinn - sum_verlust
-      if (abs(diff_sum) > 10) {  # Auch hier höherer Schwellenwert
+      if (abs(diff_sum) > 10) {
         score <- score + 1
       }
     }
   }
-
-  # 6) Amplitudenpositionen (nur wenn signifikant)
+  
+  ### 6) Amplitudenpositionen (nur wenn signifikant)
   if (signifikant) {
     verlust_vec <- parse_numeric_vector(row[["Verlust_Amplituden"]])
     gewinn_vec <- parse_numeric_vector(row[["Gewinn_Amplituden"]])
@@ -804,10 +663,10 @@ klassifiziere_protein_shift_streng_v2 <- function(row) {
       }
     }
   }
-
+  
   if (is.na(richtung)) richtung <- "unbekannt"
-
-  # Kategoriezuweisung (nur bei Score >= 4 Shift)
+  
+  ### Kategorie definieren
   if (score >= 5) {
     kategorie <- paste0("starker_", richtung, "_shift")
   } else if (score >= 4) {
@@ -815,31 +674,113 @@ klassifiziere_protein_shift_streng_v2 <- function(row) {
   } else {
     kategorie <- "kein_shift"
   }
-
+  
   return(list(Score = score, Kategorie = kategorie))
 }
 
-# Spalten anlegen, falls noch nicht da
-if (!"Shift_Score" %in% colnames(df_ergebnisse)) {
-  df_ergebnisse$Shift_Score <- NA_real_
-}
-if (!"Shift_Kategorie" %in% colnames(df_ergebnisse)) {
-  df_ergebnisse$Shift_Kategorie <- NA_character_
-}
 
-# Wende die Funktion auf jede Zeile des Dataframes an
 ergebnisse_liste <- apply(df_ergebnisse, 1, klassifiziere_protein_shift_streng_v2)
-
-# extrahiere die Ergebnisse in die entsprechenden Spalten
 df_ergebnisse$Shift_Score <- sapply(ergebnisse_liste, function(x) x$Score)
 df_ergebnisse$Shift_Kategorie <- sapply(ergebnisse_liste, function(x) x$Kategorie)
 
 
-save(df_ergebnisse, file = "df_ergebnisse_original.RData")
-
 ```
 
 
+
+```{r}
+vergleich_bewertung <- function(df, auto_spalte = "Shift_Kategorie", manuell_spalte = "Manuelle_Bewertung") {
+  # Prüfen, ob Spalten existieren
+  if (!(auto_spalte %in% names(df))) stop(paste("Spalte", auto_spalte, "nicht gefunden!"))
+  if (!(manuell_spalte %in% names(df))) stop(paste("Spalte", manuell_spalte, "nicht gefunden!"))
+  
+  # Nur Fälle mit beiden Bewertungen nehmen (keine NA)
+  df_vgl <- df[!is.na(df[[auto_spalte]]) & !is.na(df[[manuell_spalte]]), ]
+  
+  # Anzahl Fälle
+  gesamt <- nrow(df_vgl)
+  if (gesamt == 0) {
+    message("Keine vollständigen Vergleichsdaten gefunden.")
+    return(NULL)
+  }
+  
+  # Übereinstimmung prüfen
+  korrekt <- sum(df_vgl[[auto_spalte]] == df_vgl[[manuell_spalte]])
+  falsch <- gesamt - korrekt
+  genauigkeit <- korrekt / gesamt
+  
+  # Fehlklassifikationen Übersicht (Tabelle)
+  tabelle_fehler <- table(Auto = df_vgl[[auto_spalte]], Manuell = df_vgl[[manuell_spalte]])
+  
+  # Ausgabe
+  liste <- list(
+    Gesamtfaelle = gesamt,
+    Korrekt = korrekt,
+    Falsch = falsch,
+    Genauigkeit = genauigkeit,
+    Fehlklassifikationen = tabelle_fehler
+  )
+  
+  return(liste)
+}
+ergebnis_vergleich <- vergleich_bewertung(df_ergebnisse, "Shift_Kategorie", "Manuelle_Bewertung")
+
+print(ergebnis_vergleich$Genauigkeit)
+print(ergebnis_vergleich$Fehlklassifikationen)
+
+```
+```{r}
+library(dplyr)
+
+bewertungsmetriken <- function(manuel, auto) {
+  labels <- sort(unique(c(levels(factor(manuel)), levels(factor(auto)))))
+  
+  ergebnisse <- lapply(labels, function(lbl) {
+    tp <- sum(manuel == lbl & auto == lbl)
+    fp <- sum(manuel != lbl & auto == lbl)
+    fn <- sum(manuel == lbl & auto != lbl)
+    
+    precision <- ifelse(tp + fp == 0, NA, tp / (tp + fp))
+    recall <- ifelse(tp + fn == 0, NA, tp / (tp + fn))
+    f1 <- ifelse(is.na(precision) | is.na(recall) | (precision + recall) == 0, NA,
+                 2 * precision * recall / (precision + recall))
+    
+    data.frame(Kategorie = lbl, Precision = precision, Recall = recall, F1 = f1)
+  })
+  
+  bind_rows(ergebnisse)
+}
+
+library(ggplot2)
+library(tidyr)
+
+plot_confusion_matrix <- function(manuel, auto) {
+  tab <- table(Auto = auto, Manuell = manuel)
+  df_tab <- as.data.frame(tab)
+  
+  ggplot(df_tab, aes(x = Manuell, y = Auto, fill = Freq)) +
+    geom_tile() +
+    geom_text(aes(label = Freq), color = "white", size = 4) +
+    scale_fill_gradient(low = "lightblue", high = "darkblue") +
+    theme_minimal() +
+    labs(title = "Confusion Matrix", x = "Manuelle Bewertung", y = "Automatische Bewertung")
+}
+
+# Angenommen, du hast diese zwei Spalten in df_ergebnisse:
+manuelle_labels <- df_ergebnisse$Manuelle_Bewertung  # z.B. Faktor oder Character
+auto_labels <- df_ergebnisse$Shift_Kategorie         # Ergebnis aus deiner Funktion
+
+# Metriken berechnen
+metriken <- bewertungsmetriken(manuelle_labels, auto_labels)
+print(metriken)
+
+# Confusion Matrix plotten
+plot_confusion_matrix(manuelle_labels, auto_labels)
+
+```
+```{r}
+
+```
 
 
 
@@ -847,7 +788,7 @@ save(df_ergebnisse, file = "df_ergebnisse_original.RData")
 ### Plot 
 ```{r}
 # Index
-zeile = 'EI2BB_HUMAN'
+zeile = '4F2_HUMAN'
 
 # Y-Achsen-Limits berechnen
 # Werte aus beiden Datensätzen kombinieren
@@ -1115,65 +1056,3 @@ shinyApp(ui, server)
 
 ```
 
-```{r}
-# 📌 Pakete laden
-library(randomForest)
-library(caret)
-library(dplyr)
-
-set.seed(42)  # Für Reproduzierbarkeit
-
-# 📌 Zielspalte als Faktor
-df_ergebnisse$Manuelle_Bewertung <- as.factor(df_ergebnisse$Manuelle_Bewertung)
-
-# 📌 Feature-Auswahl
-features <- c("Shift_idx", "Summierter_Verlust", "Summierter_Gewinn",
-              "Fläche_Kontrolle", "Fläche_RNase", "Abstaende_Maxima",
-              "Verlust_Amplituden", "Gewinn_Amplituden", "p_Werte")
-
-# 📌 Daten mit Labels (600 Stück)
-df_labeled <- df_ergebnisse %>% filter(!is.na(Manuelle_Bewertung))
-
-# ========== 1. MODELLVALIDIERUNG: 10-fold Cross-Validation ==========
-ctrl <- trainControl(method = "cv", number = 10)
-
-rf_cv <- train(
-  x = df_labeled[, features],
-  y = df_labeled$Manuelle_Bewertung,
-  method = "rf",
-  ntree = 500,
-  trControl = ctrl,
-  importance = TRUE
-)
-
-cat("🔍 Cross-Validation-Ergebnisse:\n")
-print(rf_cv)
-cat("\nWichtigkeit der Variablen:\n")
-print(varImp(rf_cv))
-
-# ========== 2. FINALES MODELLTRAINING AUF ALLEN 600 GELABELTEN ==========
-rf_final <- randomForest(
-  x = df_labeled[, features],
-  y = df_labeled$Manuelle_Bewertung,
-  ntree = 500,
-  importance = TRUE
-)
-
-# ========== 3. VORHERSAGE AUF ALLE 7.000 PROTEINE ==========
-# Vorhersageklassen
-df_ergebnisse$Shift_Kategorie <- predict(rf_final, df_ergebnisse[, features])
-
-# Wahrscheinlichkeiten für jede Klasse
-probs <- predict(rf_final, df_ergebnisse[, features], type = "prob")
-
-# Höchste Wahrscheinlichkeit je Zeile = Shift Score
-df_ergebnisse$Shift_Score <- apply(probs, 1, max)
-
-# OPTIONAL: Zeige Top-10 unbewertete mit unsicherer Vorhersage
-df_ergebnisse %>%
-  filter(is.na(Manuelle_Bewertung)) %>%
-  arrange(Shift_Score) %>%
-  head(10)
-
-
-```
