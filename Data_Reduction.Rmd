@@ -135,8 +135,9 @@ fviz_silhouette(sil) +
 
 
 # Export der Cluster-Zuordnung als CSV Datei => später noch notwendig zum Beispiel zur Visualisierung 
-cluster_df = data.frame(Sample = colnames(MS_Table_norm),
-                        Cluster = cluster_assignment)
+cluster_df <- data.frame(Protein = rownames(MS_Table_norm),
+                         Cluster = cluster_assignment)
+
 write.csv(cluster_df, "Cluster_Zuordnung.csv", row.names = FALSE)
 ```
 
@@ -237,8 +238,9 @@ fviz_silhouette(sil) +
   ggtitle("Silhouette-Plot für K-Means Clustering")
 
 # Export der Cluster-Zuordnung als CSV Datei => später noch notwendig zum Beispiel zur Visualisierung 
-cluster_df = data.frame(Sample = colnames(MS_Table_norm),
-                        Cluster = cluster_assignment)
+cluster_df <- data.frame(Protein = rownames(MS_Table_norm),
+                         Cluster = cluster_assignment)
+
 write.csv(cluster_df, "Cluster_Zuordnung.csv", row.names = FALSE)
 ```
 ##Prozentzahlen für PC1 und PC2 für "K-Means Clustering auf PCA (k=3)" ergänzt 
@@ -404,10 +406,9 @@ fviz_silhouette(sil, palette = cluster_colors) +
 # -------------------------
 # Export Cluster-Zuordnung
 # -------------------------
-cluster_df <- data.frame(
-  Sample = colnames(MS_Table_norm),
-  Cluster = cluster_assignment
-)
+cluster_df <- data.frame(Protein = rownames(MS_Table_norm),
+                         Cluster = cluster_assignment)
+
 write.csv(cluster_df, "Cluster_Zuordnung.csv", row.names = FALSE)
 ```
 
@@ -527,8 +528,9 @@ sil_plot +
 # -------------------------
 # Cluster-Zuordnung exportieren
 # -------------------------
-cluster_df <- data.frame(Sample = colnames(MS_Table_norm),
+cluster_df <- data.frame(Protein = rownames(MS_Table_norm),
                          Cluster = cluster_assignment)
+
 write.csv(cluster_df, "Cluster_Zuordnung.csv", row.names = FALSE)
 ```
 
@@ -659,8 +661,9 @@ sil_plot +
            fontface = "italic")
 
 # Export der Cluster-Zuordnung als CSV Datei => später noch notwendig zum Beispiel zur Visualisierung 
-cluster_df = data.frame(Sample = colnames(MS_Table_norm),
-                        Cluster = cluster_assignment)
+cluster_df <- data.frame(Protein = rownames(MS_Table_norm),
+                         Cluster = cluster_assignment)
+
 write.csv(cluster_df, "Cluster_Zuordnung.csv", row.names = FALSE)
 ```
 
@@ -809,7 +812,7 @@ ylim_bereich <- range(c(y_control, y_rnase), na.rm = TRUE)
 
 # Leerer Plot
 plot(x, y_control, type = "n",
-     xlab = "", ylab = "Protein amount",
+     xlab = "Fraktionen", ylab = "Protein Menge",
      main = expression(bold("Quantitative RNA-dependent shift")),
      ylim = ylim_bereich)
 
@@ -818,12 +821,12 @@ grid(nx = 25, ny = 10, col = "lightgray", lty = "solid")
 
 # Fläche RNase (rot, links)
 polygon(c(x, rev(x)), c(y_rnase, rep(0, length(x))),
-        col = rgb(255, 0, 0, 80, maxColorValue = 255),  # Transparenz
+        col = "#7396AD",  # Transparenz
         border = NA)
 
 # Fläche Control (grün, rechts)
 polygon(c(x, rev(x)), c(y_control, rep(0, length(x))),
-        col = rgb(0, 255, 0, 50, maxColorValue = 255),
+        col = "#DBCEE6",
         border = NA)
 
 # Linien
@@ -840,7 +843,7 @@ arrows(x0 = which.max(y_rnase), y0 = max(y_rnase) + 0.02,
        length = 0.1, lwd = 2, col = "black")
 
 # Legende
-legend("topright", legend = c("Control", "RNase"),
+legend("topright", legend = c("Kontrolle", "RNase"),
        col = c("#DBCEE6", "#7396AD"), lty = 1, lwd = 2, bty = "n", cex = 0.9)
 ```
 
