@@ -274,7 +274,7 @@ abline(a=0, b=1, col="red")
 
 ```{r}
 # Variablen auswählen und fehlende Werte entfernen
-vars = c("Mass_kDa", "pI", "fitted_shift")
+vars = c("Mass_kDa", "pI", "Shift_Score")
 df_clust = df_ergebnisse_phys[complete.cases(df_ergebnisse_phys[, vars]), ]
 
 # Clustering vorbereiten (Skalierung wichtig!)
@@ -320,7 +320,7 @@ outlier_index <- which.max(abs(plot_df$PC2))  # oder PC2, je nachdem
 df_clust_no_outlier <- df_clust[-outlier_index, ]
 scaled_data_no_outlier <- scale(df_clust_no_outlier[, vars])
 set.seed(42)
-kmeans_result <- kmeans(scaled_data_no_outlier, centers = 3)
+kmeans_result <- kmeans(scaled_data_no_outlier, centers = 4)
 
 # Clusterzuweisung speichern
 df_clust_no_outlier$regression_cluster <- factor(kmeans_result$cluster)
@@ -354,6 +354,81 @@ dists <- dist(scaled_data_no_outlier)
 # Silhouette berechnen mit K-Means-Zuweisungen
 sil <- silhouette(as.numeric(df_clust_no_outlier$regression_cluster), dists)
 plot(sil, main = "Silhouette-Plot für K-Means-Clustering (k = 6)", col = 2:7, border = NA)
+```
+```{r}
+# welche Shift Kategorie ist pro Cluster am häufigsten
+library(dplyr)
+
+summary_per_cluster <- df_clust_no_outlier %>%
+  group_by(regression_cluster, Shift_Kategorie) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  arrange(desc(n))
+
+#relativ:
+summary_per_cluster_rel <- summary_per_cluster %>%
+  group_by(regression_cluster) %>%
+  mutate(
+    Anteil = n / sum(n)
+  ) %>%
+  ungroup()
+
+# in welchem cluster kommen mehr RBP vor 
+summary_per_cluster_RBP <- df_clust_no_outlier %>%
+  group_by(regression_cluster, RBP_nach_Score) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  arrange(desc(n))
+summary_per_cluster_rel_RBP <- summary_per_cluster %>%
+  group_by(regression_cluster) %>%
+  mutate(
+    Anteil = n / sum(n)
+  ) %>%
+  ungroup()
+# statistisch überprüfen, ob sich cluster in shift Kategorie unterscheiden
+# Kontingenztabelle erstellen
+table_shift_cluster <- table(df_clust_no_outlier$regression_cluster, df_clust_no_outlier$Shift_Kategorie)
+
+# Chi²-Test
+chisq.test(table_shift_cluster)
+# Verteilung der shift Kategorien unterscheidet sich signifikant zwischen den Clustern 
+
+# für RBP verteilt in den Clustern:
+# ebenfalls signifikant
+table_shift_cluster_RBP <- table(df_clust_no_outlier$regression_cluster, df_clust_no_outlier$RBP_nach_Score)
+chisq.test(table_shift_cluster_RBP)
+```
+```{r}
+ggplot(plot_df_clean, aes(x = PC1, y = PC2, color = Shift_Kategorie)) +
+  geom_point(alpha = 0.7, size = 2) +
+  labs(title = "PCA: Proteine nach Shift-Kategorie eingefärbt") +
+  theme_minimal()
+
+```
+```{r}
+ggplot(df_clust_no_outlier, aes(x = Shift_Kategorie, y = pI, fill = Shift_Kategorie)) +
+  geom_boxplot() +
+  facet_wrap(~ regression_cluster) +
+  theme_minimal() +
+  labs(title = "pI-Werte pro Shift-Kategorie in jedem Cluster")
+```
+```{r}
+#???
+# Nur zwei Cluster vergleichen
+subtable <- df_clust_no_outlier %>%
+  filter(regression_cluster %in% c(2, 3)) %>%
+  count(regression_cluster, Shift_Kategorie) %>%
+  tidyr::pivot_wider(names_from = Shift_Kategorie, values_from = n, values_fill = 0)
+
+chisq.test(subtable[,-1])
+
+```
+```{r}
+# left shift Proteine klar abgegrent in Clusteranalyse
+# nur betrachten von left shift proteinen und eventuell weitere Analyse
+df_left_shift <- df_ergebnisse_phys %>% 
+  filter(Shift_Kategorie %in% c("starker_left_shift", "moderater_left_shift"))
+model_left_shift <- lm(Shift_Score ~ Zinc_Count, data = df_left_shift)
+summary(model_left_shift)
+
 ```
 
 ```{r}
@@ -468,10 +543,10 @@ colnames(conf_matrix) <- c("Vorhergesagt_NO_RBP", "Vorhergesagt_RBP")
 rownames(conf_matrix) <- c("Tatsächlich_NO_RBP", "Tatsächlich_RBP")
 conf_matrix
 
-TN <- 1788
-FP <- 789
-FN <- 2479
-TP <- 2003
+TN <- 4578
+FP <- 800
+FN <- 985
+TP <- 697
 
 # Funktion zur Berechnung der Klassifikationsmetriken
 calc_metrics <- function(TP, TN, FP, FN) {
@@ -627,7 +702,7 @@ print(Testwerte)
 library(dplyr)
 
 df_ergebnisse_phys %>%
-  group_by(Shift_Kategorie) %>%
+  group_by(RBP_Status) %>%
   summarise(
     mittlerer_Zinc_Count = mean(Zinc_Count, na.rm = TRUE),
     median_Zinc_Count = median(Zinc_Count, na.rm = TRUE),
@@ -640,13 +715,33 @@ df_ergebnisse_phys %>%
 library(dplyr)
 
 df_ergebnisse_phys %>%
-  group_by(Shift_Kategorie) %>%
+  group_by(RBP_Status) %>%
   summarise(
     mittlerer_pI = mean(pI, na.rm = TRUE),
     median_pI = median(pI, na.rm = TRUE),
     n = n()
   ) %>%
   arrange(desc(mittlerer_pI))
+
+```
+```{r}
+df_ergebnisse_phys$Hat_Zinkfinger <- ifelse(!is.na(df_ergebnisse_phys$Zinc_Count) & df_ergebnisse_phys$Zinc_Count > 0, "ja", "nein")
+table(df_ergebnisse_phys$RBP_Status, df_ergebnisse_phys$Hat_Zinkfinger)
+prop.table(table(df_ergebnisse_phys$RBP_Status, df_ergebnisse_phys$Hat_Zinkfinger), 1) * 100
+chisq.test(table(df_ergebnisse_phys$RBP_Status, df_ergebnisse_phys$Hat_Zinkfinger))
+library(ggplot2)
+```
+
+```{r}
+t.test(Zinc_Count ~ RBP_nach_Score, data = df_ergebnisse_phys)
+library(ggplot2)
+
+ggplot(df_ergebnisse_phys, aes(x = RBP_Status, y = Zinc_Count, fill = RBP_Status)) +
+  geom_violin(trim = FALSE, alpha = 0.5) +
+  geom_boxplot(width = 0.2, outlier.shape = NA) +
+  labs(title = "Vergleich des isoelektrischen Punkts (pI) zwischen RBP und NO_RBP",
+       x = "Protein-Typ", y = "pI") +
+  theme_minimal()
 
 ```
 
@@ -690,7 +785,7 @@ df_plot$predicted_prob <- predict(model_logit, type = "response")
 
 ggplot(df_plot, aes(x = Zinc_Count, y = pI, color = predicted_prob)) +
   geom_point(size = 2, alpha = 0.7) +
-  scale_color_gradient(low = "#7E51A4", high = "#415961") +
+  scale_color_gradient(low = "#EDE6F2", high = "#394041") +
   labs(title = "Vorhergesagte Wahrscheinlichkeit für RBP",
        x = "Zink-Finger Anzahl", y = "Isoelektrischer Punkt (pI)",
        color = "P(RBP)") +
@@ -747,11 +842,5 @@ ggplot(df_summary, aes(x = RBP_Gruppe, y = n, fill = Kategorie_mit_n)) +
   theme_minimal(base_size = 13)
 
 ```
-```{r}
-df_ergebnisse_phys$RBP_nach_Score = factor(df_ergebnisse_phys$RBP_nach_Score, levels = c("NO_RBP", "RBP"))
-model_Zinc = lm(Zinc_Count ~ RBP_nach_Score + pI,
-                   data = df_ergebnisse_phys,
-                   family = "binomial")
-summary(model_logit)
-```
+
 
