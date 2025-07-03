@@ -18,7 +18,7 @@ MS_Table_norm = read.table("Datensätze/MS_Table.norm.csv", header=TRUE, row.nam
 # PCA mit ursprünglichen Werten
 # nur Carls Code
 
-pca = prcomp(MS_Table, center = FALSE, scale = FALSE)
+pca = prcomp(MS_Table, center = TRUE, scale = TRUE)
 summary(pca)
 pca$sdev
 variance = (pca$sdev)^2
@@ -47,6 +47,239 @@ plot(pca$x[,1], pca$x[,2],
      col= 'black', pch=19,
      xlab='PC1',ylab='PC2')
 ```
+
+```{r}
+# Dein PCA-Objekt
+pca = prcomp(MS_Table_norm, center = TRUE, scale. = TRUE)
+
+# PCA-Scores (Koordinaten der Proteine auf den PCs)
+scores = pca$x
+
+# Die Shift-Kategorien aus der Ergebnis-Tabelle holen
+shift_kategorie = df_ergebnisse[,14]  # Spalte 14
+
+# Prüfen, dass die Reihenfolge der Kategorien zu den PCA-Scores passt
+# Wenn MS_Table_norm und df_ergebnisse dieselben Zeilenreihenfolgen haben, ist das ok.
+# Falls nicht, musst du sicherstellen, dass sie aufeinander gematcht sind!
+
+# Kategorien als Faktor (optional mit Reihenfolge)
+shift_kategorie = factor(shift_kategorie, levels = c("kein_shift",
+                                                     "moderater_left_shift",
+                                                     "starker_left_shift",
+                                                     "moderater_right_shift",
+                                                     "starker_right_shift"))
+
+# Farben für die Kategorien definieren
+farben = c("kein_shift"="grey50",
+           "moderater_left_shift"="orange",
+           "starker_left_shift"="red",
+           "moderater_right_shift"="skyblue",
+           "starker_right_shift"="blue")
+
+# Layout: 1 Zeile, 2 Spalten
+layout(matrix(c(1,2), 1, 2), widths=c(4,1))  # 4 Teile Plot, 1 Teil Legende
+
+# PCA-Plot
+par(mar=c(5,4,4,1))  # normaler Rand, rechts kleiner (weil Legende eigene Spalte hat)
+plot(scores[,1], scores[,2],
+     col=farben[shift_kategorie],
+     pch=19,
+     xlab="PC1", ylab="PC2",
+     main="PCA: Färbung nach Shift-Kategorie")
+
+# Legende in eigenem Feld
+par(mar=c(0,0,0,0))  # keine Ränder
+plot.new()           # leeres Plotfenster
+legend("center", legend=levels(shift_kategorie),
+       col=farben, pch=19, title="Shift-Kategorie")
+```
+#Tabelle MS-Table_norm trennen
+```{r}
+# Anzahl der Fraktionen
+n_fraktionen <- 25
+
+# Spaltenindizes vorbereiten
+kontrolle_idx <- c()
+rnase_idx <- c()
+
+for (f in 0:(n_fraktionen-1)) {
+  start_col <- 6*f
+  # Kontrolle: Spalten 1-3 jeder Fraktion
+  kontrolle_idx <- c(kontrolle_idx, start_col + 1:3)
+  # RNAse: Spalten 4-6 jeder Fraktion
+  rnase_idx <- c(rnase_idx, start_col + 4:6)
+}
+
+# Tabellen extrahieren
+MS_Kontrolle <- MS_Table_norm[, kontrolle_idx]
+MS_RNAse <- MS_Table_norm[, rnase_idx]
+```
+
+#K-Means Clustering nur auf Kontrolle anwenden
+```{r}
+# PCA auf normierter Tabelle
+pca = prcomp(MS_Kontrolle, center = TRUE, scale. = TRUE)
+
+# Varianz-Anteile anzeigen (optional)
+prop.variance = (pca$sdev)^2 / sum(pca$sdev^2)
+barplot(prop.variance[1:10], main = "Varianzanteile (Top 10 PCs)", ylab = "Proportion")
+
+# Auswahl der ersten 5 Hauptkomponenten für Clustering
+pca_data = pca$x[, 1:5]
+
+# Benötigte Pakete laden
+library(factoextra)
+library(cluster)
+library(RColorBrewer)
+col = brewer.pal(9, 'Set1')
+
+# Elbow-Methode(Zusatzt Linie zum Knickpunkt) => Verändert
+elbow_plot <- fviz_nbclust(pca_data, kmeans, method = "wss") +
+  ggtitle("Elbow-Methode – optimale Clusteranzahl") +
+  geom_vline(xintercept = 5, linetype = 2, color = "blue")  # Code bestimmt trz. nicht optimales k => muss selber bei "x-intercept" eingesetzt werden
+
+print(elbow_plot)
+
+# Silhouette-Methode
+fviz_nbclust(pca_data, kmeans, method = "silhouette") +
+  ggtitle("Silhouette-Methode – optimale Clusteranzahl")
+
+# Setze Seed für Reproduzierbarkeit
+set.seed(123)
+
+# K-Means Clustering mit k = 3 ==> eventuell muss noch angepasst werden
+km = kmeans(pca_data, centers = 6, nstart = 25)
+
+# Cluster-Zuordnung speichern
+cluster_assignment = km$cluster
+
+# Plot der ersten zwei PCs mit Clusterfarben
+plot(pca$x[,1], pca$x[,2],
+     col = col[cluster_assignment],
+     pch = 19,
+     xlab = "PC1", ylab = "PC2",
+     main = "K-Means Clustering auf PCA (k=3)")
+
+# Erstellung Silhouette Plots zur Bewertung der Clusterqualität => Verändert
+
+# Silhouette-Plot (so, dass wenn der Datensatz zu groß ist eine Stichprobe erstellt wird)
+
+library(factoextra)
+
+# Prüfen ob Datensatz zu groß ist (> 1000 Beobachtungen)
+n_obs <- nrow(pca_data)
+sample_threshold <- 1000  #bestimmt ab wann Stichprobe gemacht werden sollte
+
+if (n_obs > sample_threshold) {
+  # Stichprobe ziehen
+  set.seed(42)
+  sample_idx <- sample(1:n_obs, 500)  # Größe der Stichprobe wird durch zuvorgehenden Code bestimmt 
+  pca_sample <- pca_data[sample_idx, ]
+  cluster_sample <- cluster_assignment[sample_idx]
+  dist_sample <- dist(pca_sample)
+  sil <- silhouette(cluster_sample, dist_sample)
+  message("Der Silhouette-Plot basiert jetzt auf einer Stichprobe von 500 Beobachtungen")
+} else {
+  # Verwendung des gesamten Datensatzes 
+  dist_matrix <- dist(pca_data)
+  sil <- silhouette(cluster_assignment, dist_matrix)
+}
+
+# Visualisierung mit factoextra
+fviz_silhouette(sil) +
+  ggtitle("Silhouette-Plot für K-Means Clustering")
+
+
+# Export der Cluster-Zuordnung als CSV Datei => später noch notwendig zum Beispiel zur Visualisierung 
+cluster_df <- data.frame(Protein = rownames(MS_Table_norm),
+                         Cluster = cluster_assignment)
+
+write.csv(cluster_df, "Cluster_Zuordnung.csv", row.names = FALSE)
+```
+
+#k-Means Clustering auf RNAse
+```{r}
+# PCA auf normierter Tabelle
+pca = prcomp(MS_RNAse, center = TRUE, scale. = TRUE)
+
+# Varianz-Anteile anzeigen (optional)
+prop.variance = (pca$sdev)^2 / sum(pca$sdev^2)
+barplot(prop.variance[1:10], main = "Varianzanteile (Top 10 PCs)", ylab = "Proportion")
+
+# Auswahl der ersten 5 Hauptkomponenten für Clustering
+pca_data = pca$x[, 1:5]
+
+# Benötigte Pakete laden
+library(factoextra)
+library(cluster)
+library(RColorBrewer)
+col = brewer.pal(9, 'Set1')
+
+# Elbow-Methode(Zusatzt Linie zum Knickpunkt) => Verändert
+elbow_plot <- fviz_nbclust(pca_data, kmeans, method = "wss") +
+  ggtitle("Elbow-Methode – optimale Clusteranzahl") +
+  geom_vline(xintercept = 5, linetype = 2, color = "blue")  # Code bestimmt trz. nicht optimales k => muss selber bei "x-intercept" eingesetzt werden
+
+print(elbow_plot)
+
+# Silhouette-Methode
+fviz_nbclust(pca_data, kmeans, method = "silhouette") +
+  ggtitle("Silhouette-Methode – optimale Clusteranzahl")
+
+# Setze Seed für Reproduzierbarkeit
+set.seed(123)
+
+# K-Means Clustering mit k = 3 ==> eventuell muss noch angepasst werden
+km = kmeans(pca_data, centers = 6, nstart = 25)
+
+# Cluster-Zuordnung speichern
+cluster_assignment = km$cluster
+
+# Plot der ersten zwei PCs mit Clusterfarben
+plot(pca$x[,1], pca$x[,2],
+     col = col[cluster_assignment],
+     pch = 19,
+     xlab = "PC1", ylab = "PC2",
+     main = "K-Means Clustering auf PCA (k=3)")
+
+# Erstellung Silhouette Plots zur Bewertung der Clusterqualität => Verändert
+
+# Silhouette-Plot (so, dass wenn der Datensatz zu groß ist eine Stichprobe erstellt wird)
+
+library(factoextra)
+
+# Prüfen ob Datensatz zu groß ist (> 1000 Beobachtungen)
+n_obs <- nrow(pca_data)
+sample_threshold <- 1000  #bestimmt ab wann Stichprobe gemacht werden sollte
+
+if (n_obs > sample_threshold) {
+  # Stichprobe ziehen
+  set.seed(42)
+  sample_idx <- sample(1:n_obs, 500)  # Größe der Stichprobe wird durch zuvorgehenden Code bestimmt 
+  pca_sample <- pca_data[sample_idx, ]
+  cluster_sample <- cluster_assignment[sample_idx]
+  dist_sample <- dist(pca_sample)
+  sil <- silhouette(cluster_sample, dist_sample)
+  message("Der Silhouette-Plot basiert jetzt auf einer Stichprobe von 500 Beobachtungen")
+} else {
+  # Verwendung des gesamten Datensatzes 
+  dist_matrix <- dist(pca_data)
+  sil <- silhouette(cluster_assignment, dist_matrix)
+}
+
+# Visualisierung mit factoextra
+fviz_silhouette(sil) +
+  ggtitle("Silhouette-Plot für K-Means Clustering")
+
+
+# Export der Cluster-Zuordnung als CSV Datei => später noch notwendig zum Beispiel zur Visualisierung 
+cluster_df <- data.frame(Protein = rownames(MS_Table_norm),
+                         Cluster = cluster_assignment)
+
+write.csv(cluster_df, "Cluster_Zuordnung.csv", row.names = FALSE)
+```
+
+
 ## Installieren der genannten libraries im Code 
 ```{r install_all_needed, eval=FALSE}
 install.packages(c("factoextra", "cluster", "pheatmap", "RColorBrewer"))
@@ -135,14 +368,184 @@ fviz_silhouette(sil) +
 
 
 # Export der Cluster-Zuordnung als CSV Datei => später noch notwendig zum Beispiel zur Visualisierung 
-cluster_df = data.frame(Sample = colnames(MS_Table_norm),
-                        Cluster = cluster_assignment)
+cluster_df <- data.frame(Protein = rownames(MS_Table_norm),
+                         Cluster = cluster_assignment)
+
 write.csv(cluster_df, "Cluster_Zuordnung.csv", row.names = FALSE)
 ```
+#Vergleich mit Shift_Score
+
+```{r}
+# PCA auf normierter Tabelle
+pca <- prcomp(MS_Table_norm, center = TRUE, scale. = TRUE)
+
+# Varianz-Anteile anzeigen (optional)
+prop.variance <- (pca$sdev)^2 / sum(pca$sdev^2)
+barplot(prop.variance[1:10], main = "Varianzanteile (Top 10 PCs)", ylab = "Proportion")
+
+# Auswahl der ersten 5 Hauptkomponenten für Clustering
+pca_data <- pca$x[, 1:5]
+
+# Benötigte Pakete laden
+library(factoextra)
+library(cluster)
+library(RColorBrewer)
+library(ggplot2)
+
+col <- brewer.pal(9, 'Set1')
+
+# Elbow-Methode mit manueller Knickpunkt-Linie
+elbow_plot <- fviz_nbclust(pca_data, kmeans, method = "wss") +
+  ggtitle("Elbow-Methode – optimale Clusteranzahl") +
+  geom_vline(xintercept = 5, linetype = 2, color = "blue")
+
+print(elbow_plot)
+
+# Silhouette-Methode
+fviz_nbclust(pca_data, kmeans, method = "silhouette") +
+  ggtitle("Silhouette-Methode – optimale Clusteranzahl")
+
+# Setze Seed für Reproduzierbarkeit
+set.seed(123)
+
+# K-Means Clustering mit k=6
+km <- kmeans(pca_data, centers = 6, nstart = 25)
+
+# Cluster-Zuordnung speichern
+cluster_assignment <- km$cluster
+
+# Plot der ersten zwei PCs mit Clusterfarben
+plot(pca$x[,1], pca$x[,2],
+     col = col[cluster_assignment],
+     pch = 19,
+     xlab = "PC1", ylab = "PC2",
+     main = "K-Means Clustering auf PCA (k=6)")
+
+# Silhouette-Plot
+n_obs <- nrow(pca_data)
+sample_threshold <- 1000
+
+if (n_obs > sample_threshold) {
+  set.seed(42)
+  sample_idx <- sample(1:n_obs, 500)
+  pca_sample <- pca_data[sample_idx, ]
+  cluster_sample <- cluster_assignment[sample_idx]
+  dist_sample <- dist(pca_sample)
+  sil <- silhouette(cluster_sample, dist_sample)
+  message("Der Silhouette-Plot basiert jetzt auf einer Stichprobe von 500 Beobachtungen")
+} else {
+  dist_matrix <- dist(pca_data)
+  sil <- silhouette(cluster_assignment, dist_matrix)
+}
+
+fviz_silhouette(sil) +
+  ggtitle("Silhouette-Plot für K-Means Clustering")
+
+# Export der Cluster-Zuordnung als CSV
+cluster_df <- data.frame(Protein = rownames(MS_Table_norm),
+                         Cluster = cluster_assignment)
+
+write.csv(cluster_df, "Cluster_Zuordnung.csv", row.names = FALSE)
 
 
+####################
+# HIER: Plot mit Shift-Kategorien
+####################
 
-## VERSCHIEDENE OPTIONEN DES EINKREISENS => K-Means Clustering auf die obigen PCA-Ergebnissen angewandt 
+# Shift-Kategorien aus df_ergebnisse holen
+# Angenommen df_ergebnisse hat:
+# - Spalte 1: Proteinname
+# - Spalte 14: Shift-Kategorie
+shift_df <- data.frame(
+  Protein = df_ergebnisse[[1]],
+  Shift_Kategorie = df_ergebnisse[[14]]
+)
+
+# PCA-Scores (PC1 & PC2) holen und mit Cluster kombinieren
+pca_scores <- as.data.frame(pca$x[, 1:2])
+pca_scores$Protein <- rownames(pca$x)
+pca_scores$Cluster <- factor(cluster_assignment)
+
+# Merge mit Shift-Kategorien
+plot_df <- merge(pca_scores, shift_df, by = "Protein")
+
+
+# Farben für Shift-Kategorien definieren
+shift_colors <- c("kein_Shift" = "violet",
+                  "moderater_right_shift" = "#E69F00",
+                  "starker_right_shift" = "#D55E00",
+                  "starker_left_shift" = "#0072B2",
+                  "moderater_left_shift" = "#56B4E9")
+
+# Plot: Cluster unverändert, Farbe = Shift-Kategorie
+ggplot(plot_df, aes(x = PC1, y = PC2, color = Shift_Kategorie)) +
+  geom_point(size = 2, alpha = 0.8) +
+  scale_color_manual(values = shift_colors) +
+  labs(title = "K-Means Clustering auf PCA (k=6) – eingefärbt nach Shift-Kategorie",
+       subtitle = "Cluster unverändert; Farbe zeigt Shift-Kategorie",
+       x = "PC1", y = "PC2", color = "Shift-Kategorie") +
+  theme_minimal()
+
+```
+
+```{r}
+# 1) Cluster-Zuordnung speichern
+cluster_df <- data.frame(
+  Protein = rownames(MS_Table_norm),
+  Cluster = cluster_assignment,
+  stringsAsFactors = FALSE
+)
+
+# 2) Shift-Kategorien aus df_ergebnisse holen
+# Angenommen: df_ergebnisse hat in Spalte 1 die Protein-Namen und in Spalte 14 die Shift-Kategorie
+shift_df <- data.frame(
+  Protein = df_ergebnisse[[1]],
+  Shift_Kategorie = df_ergebnisse[[14]],
+  stringsAsFactors = FALSE
+)
+
+# 3) PCA Scores (PC1 und PC2) für Plot aufbereiten
+pca_scores <- as.data.frame(pca$x[, 1:2])
+pca_scores$Protein <- rownames(pca$x)
+pca_scores$Cluster <- factor(cluster_assignment)
+
+# 4) Merge: PCA + Cluster + Shift-Kategorie
+plot_df <- merge(pca_scores, shift_df, by = "Protein", all.x = TRUE)
+
+# 5) Fehlende Shift-Kategorien als "kein_Shift" setzen
+plot_df$Shift_Kategorie[is.na(plot_df$Shift_Kategorie)] <- "kein_Shift"
+
+# 6) Levels der Kategorien explizit definieren (für Reihenfolge in Legende)
+plot_df$Shift_Kategorie <- factor(plot_df$Shift_Kategorie, levels = c(
+  "kein_Shift", "moderater_right_shift", "starker_right_shift", "starker_left_shift", "moderater_left_shift"
+))
+
+# 7) Farben für Shift-Kategorien festlegen
+shift_colors <- c(
+  "kein_Shift" = "violet",
+  "moderater_right_shift" = "#E69F00",
+  "starker_right_shift" = "#D55E00",
+  "starker_left_shift" = "#0072B2",
+  "moderater_left_shift" = "#56B4E9"
+)
+
+# 8) Plot erstellen
+library(ggplot2)
+
+ggplot(plot_df, aes(x = PC1, y = PC2, color = Shift_Kategorie)) +
+  geom_point(size = 2, alpha = 0.8) +
+  scale_color_manual(values = shift_colors, na.translate = FALSE) +
+  labs(title = "K-Means Clustering auf PCA – eingefärbt nach Shift-Kategorie",
+       subtitle = paste0("Cluster-Zuordnung (k=6) mit Shift-Färbung"),
+       x = "PC1", y = "PC2", color = "Shift-Kategorie") +
+  theme_minimal()
+
+# 9) Optional: Cluster-Zuordnung inkl. Shift-Kategorie als CSV speichern
+output_df <- plot_df[, c("Protein", "Cluster", "Shift_Kategorie")]
+write.csv(output_df, "Cluster_Shift_Zuordnung.csv", row.names = FALSE)
+
+```
+
 
 ```{r kmeans_pca_clustering, message=FALSE, warning=FALSE}
 
@@ -237,8 +640,9 @@ fviz_silhouette(sil) +
   ggtitle("Silhouette-Plot für K-Means Clustering")
 
 # Export der Cluster-Zuordnung als CSV Datei => später noch notwendig zum Beispiel zur Visualisierung 
-cluster_df = data.frame(Sample = colnames(MS_Table_norm),
-                        Cluster = cluster_assignment)
+cluster_df <- data.frame(Protein = rownames(MS_Table_norm),
+                         Cluster = cluster_assignment)
+
 write.csv(cluster_df, "Cluster_Zuordnung.csv", row.names = FALSE)
 ```
 ##Prozentzahlen für PC1 und PC2 für "K-Means Clustering auf PCA (k=3)" ergänzt 
@@ -404,10 +808,9 @@ fviz_silhouette(sil, palette = cluster_colors) +
 # -------------------------
 # Export Cluster-Zuordnung
 # -------------------------
-cluster_df <- data.frame(
-  Sample = colnames(MS_Table_norm),
-  Cluster = cluster_assignment
-)
+cluster_df <- data.frame(Protein = rownames(MS_Table_norm),
+                         Cluster = cluster_assignment)
+
 write.csv(cluster_df, "Cluster_Zuordnung.csv", row.names = FALSE)
 ```
 
@@ -527,8 +930,9 @@ sil_plot +
 # -------------------------
 # Cluster-Zuordnung exportieren
 # -------------------------
-cluster_df <- data.frame(Sample = colnames(MS_Table_norm),
+cluster_df <- data.frame(Protein = rownames(MS_Table_norm),
                          Cluster = cluster_assignment)
+
 write.csv(cluster_df, "Cluster_Zuordnung.csv", row.names = FALSE)
 ```
 
@@ -659,8 +1063,9 @@ sil_plot +
            fontface = "italic")
 
 # Export der Cluster-Zuordnung als CSV Datei => später noch notwendig zum Beispiel zur Visualisierung 
-cluster_df = data.frame(Sample = colnames(MS_Table_norm),
-                        Cluster = cluster_assignment)
+cluster_df <- data.frame(Protein = rownames(MS_Table_norm),
+                         Cluster = cluster_assignment)
+
 write.csv(cluster_df, "Cluster_Zuordnung.csv", row.names = FALSE)
 ```
 
@@ -809,7 +1214,7 @@ ylim_bereich <- range(c(y_control, y_rnase), na.rm = TRUE)
 
 # Leerer Plot
 plot(x, y_control, type = "n",
-     xlab = "", ylab = "Protein amount",
+     xlab = "Fraktionen", ylab = "Protein Menge",
      main = expression(bold("Quantitative RNA-dependent shift")),
      ylim = ylim_bereich)
 
@@ -818,12 +1223,12 @@ grid(nx = 25, ny = 10, col = "lightgray", lty = "solid")
 
 # Fläche RNase (rot, links)
 polygon(c(x, rev(x)), c(y_rnase, rep(0, length(x))),
-        col = rgb(255, 0, 0, 80, maxColorValue = 255),  # Transparenz
+        col = "#7396AD",  # Transparenz
         border = NA)
 
 # Fläche Control (grün, rechts)
 polygon(c(x, rev(x)), c(y_control, rep(0, length(x))),
-        col = rgb(0, 255, 0, 50, maxColorValue = 255),
+        col = "#DBCEE6",
         border = NA)
 
 # Linien
@@ -840,7 +1245,7 @@ arrows(x0 = which.max(y_rnase), y0 = max(y_rnase) + 0.02,
        length = 0.1, lwd = 2, col = "black")
 
 # Legende
-legend("topright", legend = c("Control", "RNase"),
+legend("topright", legend = c("Kontrolle", "RNase"),
        col = c("#DBCEE6", "#7396AD"), lty = 1, lwd = 2, bty = "n", cex = 0.9)
 ```
 
