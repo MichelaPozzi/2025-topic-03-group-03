@@ -194,7 +194,7 @@ df_plot <- df_ergebnisse_phys[complete.cases(df_ergebnisse_phys[, c("Shift_Score
 df_plot <- df_plot[df_plot$Mass_kDa < 2000, ] # Ausreißer entfenen
 
 # Modellvorhersage (Vorhersage des Shift Scores)
-df_plot$predicted_score <- predict(model, newdata = df_plot)
+df_plot$predicted_score <- predict(model_linear, newdata = df_plot)
 
 library(ggplot2)
 
@@ -843,4 +843,38 @@ ggplot(df_summary, aes(x = RBP_Gruppe, y = n, fill = Kategorie_mit_n)) +
 
 ```
 
+```{r}
+# Proteine, die nicht direkt an die RNA binden
+# Filtere auf Proteine mit Listing_Count > 6
+rbp_kandidaten <- df_ergebnisse_phys %>%
+  filter(Listing_Count > 1)
+
+# Shift_idx Statistiken
+mean_shift   <- mean(rbp_kandidaten$Shift_idx, na.rm = TRUE)
+sd_shift     <- sd(rbp_kandidaten$Shift_idx, na.rm = TRUE)
+median_shift <- median(rbp_kandidaten$Shift_idx, na.rm = TRUE)
+
+# Mass_kDa Statistiken
+mean_masse   <- mean(rbp_kandidaten$Mass_kDa, na.rm = TRUE)
+sd_masse     <- sd(rbp_kandidaten$Mass_kDa, na.rm = TRUE)
+median_masse <- median(rbp_kandidaten$Mass_kDa, na.rm = TRUE)
+
+# Ausgabe
+cat("Shift_idx:\n")
+cat("  Mittelwert:", mean_shift, " | Median:", median_shift, " | SD:", sd_shift, "\n\n")
+
+cat("Mass_kDa:\n")
+cat("  Mittelwert:", mean_masse, " | Median:", median_masse, " | SD:", sd_masse, "\n")
+
+rbp_kandidaten <- rbp_kandidaten %>%
+  mutate(Shift_per_kDa = Shift_idx / Mass_kDa)
+# Schwellenwerte
+cutoff_mass <- mean_masse
+cutoff_shift <- mean_shift + sd_shift
+
+# Potenziell indirekte RNA-abhängige Proteine
+indirekt_rna_abhaengig <- df_ergebnisse_phys %>%
+  filter(Mass_kDa < cutoff_mass,
+         Shift_idx > cutoff_shift)
+```
 
