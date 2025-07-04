@@ -15,9 +15,11 @@ MS_Table_norm = read.table("Datensätze/MS_Table.norm.csv", header=TRUE, row.nam
 ```{r}
 install.packages("pracma")
 ```
+#Goal: Now we have the normalized values for all proteins and can examine our dataset in detail. Our goal was to identify differences between the control and RNase samples. To do this, we first determined both absolute and local maxima for all proteins. To take it a step further, we wanted to create our own function that can assign each protein to a shift category based on criteria we defined ourselves. So now, let’s take a closer look at our proteins.
 
 # Data exploration
 
+#Vector of fraction names to later insert the names into our mean value tables.
 ```{r}
 Fraktionsnamen = c('Fraction1_Ctrl', 'Fraction1_RNAse', 'Fraction2_Ctrl', 'Fraction2_RNAse','Fraction3_Ctrl', 'Fraction3_RNAse','Fraction4_Ctrl', 'Fraction4_RNAse','Fraction5_Ctrl', 'Fraction5_RNAse','Fraction6_Ctrl', 'Fraction6_RNAse','Fraction7_Ctrl', 'Fraction7_RNAse','Fraction8_Ctrl', 'Fraction8_RNAse','Fraction9_Ctrl', 'Fraction9_RNAse','Fraction10_Ctrl', 'Fraction10_RNAse','Fraction11_Ctrl', 'Fraction11_RNAse','Fraction12_Ctrl', 'Fraction12_RNAse','Fraction13_Ctrl', 'Fraction13_RNAse','Fraction14_Ctrl', 'Fraction14_RNAse','Fraction15_Ctrl', 'Fraction15_RNAse','Fraction16_Ctrl', 'Fraction16_RNAse','Fraction17_Ctrl', 'Fraction17_RNAse','Fraction18_Ctrl', 'Fraction18_RNAse','Fraction19_Ctrl', 'Fraction19_RNAse','Fraction20_Ctrl', 'Fraction20_RNAse','Fraction21_Ctrl', 'Fraction21_RNAse','Fraction22_Ctrl', 'Fraction22_RNAse','Fraction23_Ctrl', 'Fraction23_RNAse','Fraction24_Ctrl', 'Fraction24_RNAse','Fraction25_Ctrl', 'Fraction25_RNAse')
 ```
@@ -54,6 +56,27 @@ Mittelwerte_RNAse = as.data.frame(Mittelwert_matrix[, seq(2, 50, by=2)])
 colnames(Mittelwerte_Kontrolle) <- paste0(Fraktionsnamen[seq(1, 50, by=2)])
 colnames(Mittelwerte_RNAse) <- paste0(Fraktionsnamen[seq(1, 50, by=2)])
   
+```
+
+```{r}
+zeile = '4F2_HUMAN'
+
+# Y-Achsen-Limits berechnen
+# Werte aus beiden Datensätzen kombinieren
+alle_werte <- c(Ctrl1_norm[zeile,], RNAse1_norm[zeile,])
+ylim_bereich <- range(alle_werte, na.rm = TRUE)
+
+# Erster Plot mit manuellem ylim
+plot(1:25, Ctrl1_norm[zeile,], type = "l", col = 'purple',
+     xlab = "fraction", ylab = "Intensity", main = "Proteinverteilung",
+     ylim = ylim_bereich)
+
+# Zweiter Plot hinzufügen
+lines(1:25, RNAse1_norm[zeile,], col = "darkblue")
+
+# Legende
+legend("topright", legend = c("Ctrl1_norm", "RNAse1_norm"),
+       col = c("purple", "darkblue"), lty = 1, cex = 0.8)
 ```
 
 ## Maxima Bestimmung
@@ -723,7 +746,7 @@ vergleich_bewertung <- function(df, auto_spalte = "Shift_Kategorie", manuell_spa
   
   return(liste)
 }
-ergebnis_vergleich <- vergleich_bewertung(df_ergebnisse, "Shift_Kategorie", "Manuelle_Bewertung")
+ergebnis_vergleich <- vergleich_bewertung(df_ergebnisse_phys, "Shift_Kategorie", "Manuelle_Bewertung")
 
 print(ergebnis_vergleich$Genauigkeit)
 print(ergebnis_vergleich$Fehlklassifikationen)
@@ -778,36 +801,110 @@ print(metriken)
 plot_confusion_matrix(manuelle_labels, auto_labels)
 
 ```
+
 ```{r}
-
-```
-
-
-
-
-### Plot 
-```{r}
-# Index
-zeile = '4F2_HUMAN'
+zeile <- 'ACOT9_HUMAN'
 
 # Y-Achsen-Limits berechnen
-# Werte aus beiden Datensätzen kombinieren
 alle_werte <- c(Ctrl1_norm[zeile,], RNAse1_norm[zeile,])
 ylim_bereich <- range(alle_werte, na.rm = TRUE)
 
-# Erster Plot mit manuellem ylim
-plot(1:25, Ctrl1_norm[zeile,], type = "l", col = 'purple',
-     xlab = "Fraktion", ylab = "Intensität", main = "Proteinverteilung",
+# Mehr Platz oben schaffen (z.B. 15% mehr)
+ylim_bereich[2] <- ylim_bereich[2] * 1.15
+
+# Plot vorbereiten
+plot(1:25, Ctrl1_norm[zeile,], type = "n",
+     xlab = "Fractions", ylab = "Intensity of Proteins", main = paste("Protein distribution:", zeile),
      ylim = ylim_bereich)
 
-# Zweiter Plot hinzufügen
-lines(1:25, RNAse1_norm[zeile,], col = "darkblue")
+# Flächen unter den Kurven
+polygon(c(1:25, 25:1),
+        c(Ctrl1_norm[zeile,], rep(0, 25)),
+        col = adjustcolor("purple", alpha.f = 0.3), border = NA)
+lines(1:25, Ctrl1_norm[zeile,], col = "purple", lwd = 2)
 
-# Legende
-legend("topright", legend = c("Ctrl1_norm", "RNAse1_norm"),
-       col = c("purple", "darkblue"), lty = 1, cex = 0.8)
+polygon(c(1:25, 25:1),
+        c(RNAse1_norm[zeile,], rep(0, 25)),
+        col = adjustcolor("darkblue", alpha.f = 0.3), border = NA)
+lines(1:25, RNAse1_norm[zeile,], col = "darkblue", lwd = 2)
+
+legend("topright", legend = c("Control", "RNAse"),
+       col = c("purple", "darkblue"), lwd = 2, cex = 0.6, inset = c(0, -0.05))  # kleiner und etwas weiter nach unten
+
+# Index des aktuellen Proteins in den Tabellen finden
+idx_ctrl <- which(abs_Maxima_Mittelwerte_Kontrolle[, 1] == zeile)
+idx_rnase <- which(abs_Maxima_Mittelwerte_RNAse[, 1] == zeile)
+
+# Maxima für Kontrolle aus Tabelle holen
+max_fraktion_ctrl <- as.numeric(as.character(abs_Maxima_Mittelwerte_Kontrolle[idx_ctrl, 3]))
+max_wert_ctrl <- as.numeric(as.character(abs_Maxima_Mittelwerte_Kontrolle[idx_ctrl, 4]))
+
+# Maxima für RNAse aus Tabelle holen
+max_fraktion_rnase <- as.numeric(as.character(abs_Maxima_Mittelwerte_RNAse[idx_rnase, 3]))
+max_wert_rnase <- as.numeric(as.character(abs_Maxima_Mittelwerte_RNAse[idx_rnase, 4]))
+
+# Vertikale Pfeile für die Maxima
+arrows(x0 = max_fraktion_ctrl, y0 = 0,
+       x1 = max_fraktion_ctrl, y1 = max_wert_ctrl,
+       col = "purple", lwd = 1.5, length = 0.1)
+
+arrows(x0 = max_fraktion_rnase, y0 = 0,
+       x1 = max_fraktion_rnase, y1 = max_wert_rnase,
+       col = "darkblue", lwd = 1.5, length = 0.1)
+
+# Labels an den Maxima
+text(x = max_fraktion_ctrl, y = max_wert_ctrl + 0.10 * max_wert_ctrl,
+     labels = "Amplitude", col = "purple", cex = 0.8)
+
+text(x = max_fraktion_rnase, y = max_wert_rnase + 0.05 * max_wert_rnase,
+     labels = "Amplitude", col = "darkblue", cex = 0.8)
+
+# Shift-Distance-Pfeil zwischen den Maxima (auf kleinstem Maxima-Niveau)
+arrow_y <- min(max_wert_ctrl, max_wert_rnase)
+
+arrows(x0 = max_fraktion_ctrl, y0 = arrow_y,
+       x1 = max_fraktion_rnase, y1 = arrow_y,
+       col = "black", lwd = 1.6, angle = 15, length = 0.1, code = 3)  # code=3 = beide Enden
+
+# Label für den Shift
+text(x = mean(c(max_fraktion_ctrl, max_fraktion_rnase)),
+     y = arrow_y + 0.05 * arrow_y,
+     labels = "Shift Distance", col = "black", cex = 0.8)
 
 ```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# RBP-Status zuordnen
+df_ergebnisse_phys <- df_ergebnisse_phys %>%
+  mutate(RBP_Gruppe = ifelse(Shift_Kategorie == "kein_shift", "non-RBP", "RBP"))
+
+# Summen berechnen pro RBP_Gruppe + Shift_Kategorie
+df_summary <- df_ergebnisse_phys %>%
+  group_by(RBP_Gruppe, Shift_Kategorie) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  mutate(
+    # Kategorie-Label mit Anzahl für die Legende
+    Kategorie_mit_n = paste0(Shift_Kategorie, " (", n, ")")
+  )
+
+ggplot(df_summary, aes(x = RBP_Gruppe, y = n, fill = Kategorie_mit_n)) +
+  geom_col(position = "stack") +
+  # Kein geom_text() → keine Zahlen in den Balken
+  scale_fill_manual(
+    values = setNames(
+      c("#A786C2", "#8684C2", "#7396AD", "#728083","#DBCEE6"), 
+      df_summary$Kategorie_mit_n
+    )
+  ) +
+  labs(title = "Total Amount of Proteins per Shift category",
+       x = "Protein Type", y = "Total Amount of Proteins", fill = "Shift-Kategorie (n)") +
+  theme_minimal(base_size = 13)
+
+```
+
 
 ```{r}
 library(dplyr)
@@ -865,42 +962,19 @@ text(x = 19, y = 2,
 ```
 
 #Data_Modelling
-```{#r}
-hist(df_ergenisse_phys$Shift_Score,
+```{r}
+hist(df_ergebnisse$Shift_Score,
      breaks = 30,
      col = "skyblue",
-     main = "Verteilung des Shift Scores",
+     main = "Distribution of the Shift Scores",
      xlab = "Shift Score")
 ```
 
-```{#r}
-# Shift Score als eine Zeile darstellen (Proteine = Spalten)
-heat_data <- t(as.matrix(df_ergenisse_phys$Shift_Score))
-
-# Spaltennamen (Proteine) trotzdem zuweisen (werden aber gleich ausgeblendet)
-colnames(heat_data) <- df_ergenisse_phys$Protein
-rownames(heat_data) <- "Shift Score"
-
-# Heatmap ohne Proteinbeschriftung
-library(pheatmap)
-
-pheatmap(
-  heat_data,
-  cluster_cols = TRUE,          # Clusterung bleibt aktiv
-  cluster_rows = FALSE,         # Nur eine Zeile – keine Zeilen-Clusterung
-  color = colorRampPalette(c("blue", "white", "red"))(100),
-  main = "Shift Scores pro Protein",
-  
-  labels_col = NA,              # <--- Spaltennamen (Proteine) ausblenden
-  fontsize_row = 10,
-  fontsize = 10
-)
-```
 
 
 # App für die Manuelle Bestimmung
 
-```{r}
+```{#r}
 library(shiny)
 
 # 📥 Daten laden
