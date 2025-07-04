@@ -33,7 +33,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 | The goal of this analysis is to examine proteomic data from HeLa cells obtained via fractionation experiments with and without RNase treatment. The workflow includes data quality control, normalization, and visualization of signal distribution across fractions. Changes in protein distribution upon RNase treatment are assessed to draw conclusions about the biophysical and functional characteristics of RNA-dependent proteins.
 
-### Loading the Data
+#### Loading the Data
 
 ```{r}
 MS_Table = read.table("Datensätze/RDeeP_HeLa_Interphase.csv", header=TRUE, row.names=1, sep = ";")
@@ -43,9 +43,9 @@ MS_Table = read.table("Datensätze/RDeeP_HeLa_Interphase.csv", header=TRUE, row.
 
 The dataset consists of mass spectrometry-based proteomic measurements from HeLa cells subjected to subcellular fractionation with and without RNase treatment.
 
--   **Rows** represent individual fraction samples, including information on **fraction number** and **replicate**.
+-   **Columns** represent individual fraction samples, including information on **fraction number** and **replicate**.
 
--   **Columns** correspond to **protein identifiers**, each representing a detected protein.
+-   **Rows** correspond to **protein identifiers**, each representing a detected protein.
 
 ```{r}
 # Table dimensions
@@ -146,7 +146,7 @@ was alles durchgeführt wurde
 -   Making sure that data is in the correct format, for example, numbers should be encoded as numeric and not as characters. [!! is grad noch bei Beschreibung]{.underline}
 -   Categorical variables should be factors etc.
 
-#### Entfernen von FHOD3_HUMAN
+#### Remove protein: FHOD3_HUMAN
 
 ```{r Remove proteins without data}
 MS_Table = MS_Table[setdiff(rownames(MS_Table), 'FHOD3_HUMAN'),]
@@ -322,47 +322,134 @@ head(MS_Table_norm)
 
 ### Visualisierung der Normierung
 
-Das schönste was wir bisher haben aber mein Probkem ich verstehe nich was hier gemacht wird
+evenutell machen wir einfach nur die visulisieurng ohne code ??
 
-Veränderungen: **Achsenbeschriftung muss weiter weg + vor muss links**
+Veränderungen: **Farben + Schriftart** + **Das Verlaufdiagramm eventuell vor das Clean-up**
+
+```{r}
+# install.packages("DiagrammeRsvg")
+# install.packages("rsvg")
+
+library(DiagrammeR)
+library(DiagrammeRsvg)
+library(rsvg)
+
+# Erstelle das Diagramm
+data_cleaning_workflow = grViz("
+digraph cleaning_process {
+  graph [rankdir = LR, fontsize = 10, splines = ortho]
+  node [shape=box, style=filled, fontname=Helvetica, fontsize=10, penwidth=1.2, fillcolor=lightblue, color=gray50]
+  edge [fontsize=9, color=gray40]
+
+  subgraph cluster_0 {
+    label = 'Initial Processing'
+    style = rounded
+    color = lightgrey
+
+    A [label = '1. Raw Data\\n(150 columns)']
+    B [label = '2. Split by Fractions\\n(3 columns each)']
+    C [label = '3. Mean per Fraction']
+  }
+
+  subgraph cluster_1 {
+    label = 'Normalization'
+    style = rounded
+    color = lightgrey
+
+    D [label = '4. Compute Normalization\\n(minimize replicate deviation)']
+    E [label = '5. Normalize per Replicate']
+  }
+
+  subgraph cluster_2 {
+    label = 'Smoothing & Scaling'
+    style = rounded
+    color = lightgrey
+
+    F [label = '6. Sliding Window\\n(3-column average)']
+    G [label = '7. Scale to 100%\\nper Fraction/Replicate']
+  }
+
+
+  A -> B -> C -> D -> E -> F -> G
+}
+")
+
+data_cleaning_workflow
+
+# Speichern als SVG und konvertieren zu PNG
+svg = export_svg(data_cleaning_workflow)
+rsvg_png(charToRaw(svg), file = "Postervisuals/data_cleaning_workflow.png", width = 1200, height = 600)
+
+```
+
 
 ```{r}
 library(ggplot2)
 library(dplyr)
 
-# Mittelwerte berechnen
-frak_mittel_raw = colMeans(MS_Table, na.rm = TRUE)
-frak_mittel_norm = colMeans(MS_Table_norm_mittel, na.rm = TRUE)
+# Calculate mean for each column (raw and normalized)
+mean_raw = colMeans(MS_Table, na.rm = TRUE)
+mean_norm = colMeans(MS_Table_norm, na.rm = TRUE)
 
-# Funktion zur Vorbereitung des Dataframes
-prepare_boxplot_df = function(mittelwerte_vector, norm_status) {
-  df = data.frame(Sample = names(mittelwerte_vector), Value = mittelwerte_vector)
-  df$Fraction = sub("Fraction(\\d+)_.*", "\\1", df$Sample)
-  df$Fraction = factor(df$Fraction, levels = as.character(1:25)) # korrekte Reihenfolge
-  df$Condition = ifelse(grepl("Ctrl", df$Sample), "Control", "RNase")
-  df$Normalization = norm_status
-  return(df)
+# Function to extract metadata from column names
+extract_meta = function(sample_names) {
+  meta_df = data.frame(Sample = sample_names, stringsAsFactors = FALSE)
+  meta_df$Fraction = sub("Fraction(\\d+)_.*", "\\1", meta_df$Sample)
+  meta_df$Fraction = factor(meta_df$Fraction, levels = as.character(1:25))
+  meta_df$Condition = ifelse(grepl("Ctrl", meta_df$Sample), "Control", "RNase")
+  meta_df$Replicate = sub(".*_Rep(\\d+)", "\\1", meta_df$Sample)
+  meta_df$Replicate = factor(meta_df$Replicate, levels = c("1", "2", "3"))
+  return(meta_df)
 }
 
-# Beide Tabellen vorbereiten und kombinieren
-df_raw = prepare_boxplot_df(frak_mittel_raw, "Vor")
-df_norm = prepare_boxplot_df(frak_mittel_norm, "Nach")
-df_all = rbind(df_raw, df_norm)
+# Get metadata for raw and normalized data
+meta_raw = extract_meta(names(mean_raw))
+meta_norm = extract_meta(names(mean_norm))
 
-# Neue kombinierte Gruppe: Fraktion + Condition
-df_all$Group = paste(df_all$Fraction, df_all$Condition, sep = "_")
-df_all$Group = factor(df_all$Group, levels = unique(df_all$Group))
+# Create data frames for raw and normalized means
+df_raw = data.frame(Sample = names(mean_raw), Value = mean_raw, Normalization = "Before") %>%
+  left_join(meta_raw, by = "Sample")
 
-# Plot: Vor und Nach als separate Farben innerhalb jeder Gruppe
+df_norm = data.frame(Sample = names(mean_norm), Value = mean_norm, Normalization = "After") %>%
+  left_join(meta_norm, by = "Sample")
 
-ggplot(df_all, aes(x = Fraction, y = Value, fill = Condition)) +
-  geom_boxplot(outlier.size = 0.5) +
-  facet_wrap(~Normalization, ncol = 2) +  # nebeneinander
+# Combine both data frames
+df_all = bind_rows(df_raw, df_norm)
+
+# Percent scale (normalized data is already percent, raw data scaled to percent for comparison)
+df_all = df_all %>%
+  group_by(Normalization, Condition, Replicate) %>%
+  mutate(Value_scaled = ifelse(Normalization == "Before", Value / max(Value, na.rm = TRUE) * 100, Value)) %>%
+  ungroup()
+
+# Set factor levels to ensure 'Before' is on the left, 'After' on the right
+df_all$Normalization = factor(df_all$Normalization, levels = c("Before", "After"))
+
+# Plot with replicate distinction using line type and point shape
+Normalization_plot = ggplot(df_all, aes(x = Fraction, y = Value_scaled, color = Condition, group = interaction(Condition, Replicate))) +
+  geom_line(aes(linetype = Replicate), alpha = 0.7) +
+  geom_point(aes(shape = Replicate), size = 2) +
+  facet_wrap(~Normalization, ncol = 2, scales = "free_y", strip.position = "top") + # Title on top
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 8)) +
-  scale_fill_manual(values = treatment_colors) +
-  labs(title = "Vergleich: Vor vs. Nach Normalisierung",
-       x = "Fraktion", y = "Intensität", fill = "Bedingung")
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+    strip.placement = "outside",
+    strip.background = element_blank(),
+    legend.position = "bottom"
+  ) +
+  scale_color_manual(values = treatment_colors) +
+  scale_linetype_manual(values = c("1" = "solid", "2" = "dashed", "3" = "dotted")) +
+  scale_shape_manual(values = c(16, 17, 15)) +
+  labs(
+    title = "Mean Protein Intensities Before and After Normalization (Percent Scale)",
+    x = "Fraction",
+    y = "Mean Intensity (%)",
+    color = "Condition",
+    linetype = "Replicate",
+    shape = "Replicate"
+  )
+
+print(Normalization_plot)
 
 ```
 
