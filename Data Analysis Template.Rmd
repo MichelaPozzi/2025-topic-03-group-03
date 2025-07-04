@@ -1,5 +1,5 @@
 ---
-title: ""
+title: "Data Analysis Project Topic 03 Proteom Screen"
 author: "Mirjam Biollaz, Hasset Gessese, Jette Klempt-Gießing, Alicia Weeber"
 date: "2025-07-07"
 output: 
@@ -9,40 +9,94 @@ output:
     toc_depth: 3
     theme: default
     fig_path: "knit/"
+    css: |
+      body {
+        font-family: "Calibri", sans-serif;
+        font-size: 16px;
+        line-height: 1.5;
 ---
 
-# Group 4.3 Data Analysis Project
+# HeLa Proteome: Decoding RNA Dependency
 
-# Überschrift wie auf Plakat
+## Characterization of Proteins Based on Biophysical Properties
+
+HeLa-Proteom: Den Code der RNA-Abhängigkeit knacken - Charakterisierung von Proteinen basierend auf biophysikalischen Eigenschaften
+
+Group 4.3 Data Analysis Project
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
 ```
 
-### Ziel:
+## Objective
 
-Ziel dieser Analyse ist es, Proteom-Daten aus HeLa-Zellen zu untersuchen, die über Fraktionierungsexperimente mit und ohne RNase-Behandlung generiert wurden. Die Analyse beinhaltet Qualitätskontrolle, Normalisierung und Visualisierung der Signalverteilung über Fraktionen hinweg, um z. B. mögliche Veränderungen in der Proteinverteilung nach RNase-Behandlung sichtbar zu machen.
+| The goal of this analysis is to examine proteomic data from HeLa cells obtained via fractionation experiments with and without RNase treatment. The workflow includes data quality control, normalization, and visualization of signal distribution across fractions. Changes in protein distribution upon RNase treatment are assessed to draw conclusions about the biophysical and functional characteristics of RNA-dependent proteins.
 
-### Datensatz einlesen
+### Loading the Data
 
 ```{r}
 MS_Table = read.table("Datensätze/RDeeP_HeLa_Interphase.csv", header=TRUE, row.names=1, sep = ";")
 ```
 
-## Libraries
+## Description of the Dataset
 
--   Briefly explain for which functions/steps are these needed
+The dataset consists of mass spectrometry-based proteomic measurements from HeLa cells subjected to subcellular fractionation with and without RNase treatment.
 
-```{r, message=FALSE, warning=FALSE}
-library(ggplot2)
-library(dplyr)
+-   **Rows** represent individual fraction samples, including information on **fraction number** and **replicate**.
+
+-   **Columns** correspond to **protein identifiers**, each representing a detected protein.
+
+```{r}
+# Table dimensions
+dim(MS_Table)
+
+# Example column names (proteins)
+head(colnames(MS_Table))
+
+# Example row names (fractions)
+head(rownames(MS_Table))
+
+# Proteins without signals
+which(rowSums(MS_Table) == 0)
+
+# Number of missing values
+sum(is.na(MS_Table))
+
+# Check for Numeric Values
+all(sapply(MS_Table, is.numeric))
 ```
 
-### Setup von Farbpalette und Themen für Plots
+-   A total of **7086 proteins** were detected across **150 samples**, covering:
+
+    -   25 fractions
+
+    -   2 treatments (*control* vs. *RNase*)
+
+    -   3 replicates
+
+-   There are **no missing values (NA)** in the dataset.
+
+-   The protein **FHOD3_HUMAN** contains no detectable signal and is removed from the analysis.
+
+-   All entries are **numeric**, allowing direct use in downstream quantitative analysis.
+
+## Setup for Code
+
+### Required Libraries
+
+```{r, message=FALSE, warning=FALSE}
+library(ggplot2) #
+library(dplyr)   #
+library(pracma)  #
+```
+
+### Plot Color Scheme and Styling
+
+A consistent and visually appealing color palette is used throughout the code to distinguish data categories clearly.
 
 ```{r, results='hide'}
-# Hexcodes für unteschiedliche Farben:
+# Hexcodes für unteschiedliche Farben; abgestimmt auf das Poster
 
  "#C7D5DE" # Balkenüberschirft
  "#DFE3EA" # Hintergrundfarbe
@@ -56,15 +110,16 @@ library(dplyr)
 "#54366D"; "#35336D"; "#30394B"; "#364B5A"; "#415961"; "#394041"
 
 
-# Farbpalette zentral definieren
-farben_status <- c("raw" = "#7E51A4", "normalized" = "#504DA4")
-farben_status_cap <- c("Raw" = "#7E51A4", "Normalized" = "#504DA4") # Für Großschreibung
-farben_treatment <- c("Ctrl" = "#8CABB5", "RNAse" = "#A786C2")
-farben_condition <- c("Control" = "#8CABB5", "RNase" = "#A786C2")
+# Color palette for treatments
+treatment_colors = c("Control" = "#8CABB5", "RNase" = "#A786C2")
 
 
-# Einheitliches Theme für Poster
-theme_poster <- theme_minimal(base_size = 14) +
+# Color palette for shifts 
+shift__colors = c(
+  "Strong Left Shift" = "#7E51A4", "Moderate Left Shift" = "#C9B6D9","No Shift" = "#D0DDE0","Moderate Right Shift" = "#9FAAC1","Strong Right Shift" = "#485571")
+
+# Einheitliches Poster-Theme
+theme_poster = theme_minimal(base_size = 14) +
   theme(
     plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
     axis.title = element_text(face = "bold"),
@@ -73,46 +128,13 @@ theme_poster <- theme_minimal(base_size = 14) +
   )
 
 
-```
 
-## Beschreibung der Daten
 
-### Ziel:
-
-#### Dimensionen der Tabelle:
-
-```{r}
-dim(MS_Table)
-```
-
-#### Spaltennamen
-
-```{r}
-head(colnames(MS_Table))
-```
-
-#### Reihennamen
-
-```{r}
-head(rownames(MS_Table))
-```
-
-#### Anzahl an fehlenden Werte
-
-```{r}
-sum(rowSums(MS_Table) == 0)
-which(rowSums(MS_Table) == 0) # muss entfernt werden
-sum(is.na(MS_Table)) # keine NAs
-
-```
-
-#### Überprüfen ob die Werte alle 'numeric' sind
-
-```{r}
-all(sapply(MS_Table, is.numeric)) # TRUE = alle Spalten sind numerisch
 ```
 
 # Data Cleanup
+
+## <!-- empty -->
 
 ### Ziel:
 
@@ -126,7 +148,7 @@ was alles durchgeführt wurde
 
 #### Entfernen von FHOD3_HUMAN
 
-```{r Entfernen von Proteinen ohne Daten, author: Alle}
+```{r Remove proteins without data}
 MS_Table = MS_Table[setdiff(rownames(MS_Table), 'FHOD3_HUMAN'),]
 ```
 
@@ -138,22 +160,22 @@ Bennenungen für unsere Tabellen für die Normierung \# Hier Alternative ist dan
 
 ```{r}
 # Fraktionen: Fraction1_Ctrl bis Fraction25_RNAse
-Fraktionsnamen <- as.vector(sapply(1:25, function(i) {
+Fraktionsnamen = as.vector(sapply(1:25, function(i) {
   c(paste0("Fraction", i, "_Ctrl"), paste0("Fraction", i, "_RNAse"))
 }))
 
 # Mittelwertnamen: mean_Fraction1_Ctrl bis mean_Fraction25_RNAse
-meantabellen <- paste0("mean_", Fraktionsnamen)
+meantabellen = paste0("mean_", Fraktionsnamen)
 
 # Replikatsnamen (normiert auf Mittelwert)
-Replikatsnamen <- c(paste0("Ctrl", 1:3, "_norm_mittel"), paste0("RNAse", 1:3, "_norm_mittel"))
+Replikatsnamen = c(paste0("Ctrl", 1:3, "_norm_mittel"), paste0("RNAse", 1:3, "_norm_mittel"))
 
 # Sliding Window Replikate
-SW_Replikatsnamen <- c(paste0("SW_Ctrl", 1:3), paste0("SW_RNAse", 1:3))
-SW_Replikatsnamen_norm <- paste0(SW_Replikatsnamen, "_norm")
+SW_Replikatsnamen = c(paste0("SW_Ctrl", 1:3), paste0("SW_RNAse", 1:3))
+SW_Replikatsnamen_norm = paste0(SW_Replikatsnamen, "_norm")
 
 # Treatmentnamen (für Mittelwert-Normierung)
-Treatmentnamen <- c(paste0("Ctrl", 1:3, "_norm"), paste0("RNAse", 1:3, "_norm"))
+Treatmentnamen = c(paste0("Ctrl", 1:3, "_norm"), paste0("RNAse", 1:3, "_norm"))
 
 ```
 
@@ -169,6 +191,8 @@ SW_Replikatsnamen = c('SW_Ctrl1','SW_Ctrl2','SW_Ctrl3','SW_RNAse1','SW_RNAse2','
 SW_Replikatsnamen_norm = c('SW_Ctrl1_norm','SW_Ctrl2_norm','SW_Ctrl3_norm','SW_RNAse1_norm','SW_RNAse2_norm','SW_RNAse3_norm')
 
 Treatmentnamen = c('Ctrl1_norm','Ctrl2_norm','Ctrl3_norm','RNAse1_norm','RNAse2_norm','RNAse3_norm')
+
+Proteinnamen = rownames(MS_Table)
 ```
 
 ```{r, ICH GLAUB DIE WERDEN GAR NICHT VERWENDET}
@@ -179,6 +203,7 @@ for (i in 1:50) {
   
   assign(Fraktionsnamen[i], teilmatrix) # wählt gleich den passenden Namen dazu aus
 }
+
 ```
 
 ```{r}
@@ -278,7 +303,7 @@ for (i in 1:6) {
 ```{r}
 # Zusammenführen zu einer Tabelle
 
-matrizen <- list(SW_Ctrl1_norm,SW_Ctrl2_norm,SW_Ctrl3_norm,SW_RNAse1_norm,SW_RNAse2_norm,SW_RNAse3_norm)
+matrizen = list(SW_Ctrl1_norm,SW_Ctrl2_norm,SW_Ctrl3_norm,SW_RNAse1_norm,SW_RNAse2_norm,SW_RNAse3_norm)
 
 MS_Table_norm = c()
 
@@ -291,7 +316,7 @@ for (i in 1:25) {
 colnames(MS_Table_norm) = colnames(MS_Table)
 rownames(MS_Table_norm) = rownames(MS_Table)
 
-MS_Table_norm
+head(MS_Table_norm)
 
 ```
 
@@ -299,34 +324,34 @@ MS_Table_norm
 
 Das schönste was wir bisher haben aber mein Probkem ich verstehe nich was hier gemacht wird
 
-Veräbderubgen: **Achsenbeschriftung muss weiter weg + vor muss links**
+Veränderungen: **Achsenbeschriftung muss weiter weg + vor muss links**
 
 ```{r}
 library(ggplot2)
 library(dplyr)
 
 # Mittelwerte berechnen
-frak_mittel_raw <- colMeans(MS_Table, na.rm = TRUE)
-frak_mittel_norm <- colMeans(MS_Table_norm_mittel, na.rm = TRUE)
+frak_mittel_raw = colMeans(MS_Table, na.rm = TRUE)
+frak_mittel_norm = colMeans(MS_Table_norm_mittel, na.rm = TRUE)
 
 # Funktion zur Vorbereitung des Dataframes
-prepare_boxplot_df <- function(mittelwerte_vector, norm_status) {
-  df <- data.frame(Sample = names(mittelwerte_vector), Value = mittelwerte_vector)
-  df$Fraction <- sub("Fraction(\\d+)_.*", "\\1", df$Sample)
-  df$Fraction <- factor(df$Fraction, levels = as.character(1:25)) # korrekte Reihenfolge
-  df$Condition <- ifelse(grepl("Ctrl", df$Sample), "Control", "RNase")
-  df$Normalization <- norm_status
+prepare_boxplot_df = function(mittelwerte_vector, norm_status) {
+  df = data.frame(Sample = names(mittelwerte_vector), Value = mittelwerte_vector)
+  df$Fraction = sub("Fraction(\\d+)_.*", "\\1", df$Sample)
+  df$Fraction = factor(df$Fraction, levels = as.character(1:25)) # korrekte Reihenfolge
+  df$Condition = ifelse(grepl("Ctrl", df$Sample), "Control", "RNase")
+  df$Normalization = norm_status
   return(df)
 }
 
 # Beide Tabellen vorbereiten und kombinieren
-df_raw <- prepare_boxplot_df(frak_mittel_raw, "Vor")
-df_norm <- prepare_boxplot_df(frak_mittel_norm, "Nach")
-df_all <- rbind(df_raw, df_norm)
+df_raw = prepare_boxplot_df(frak_mittel_raw, "Vor")
+df_norm = prepare_boxplot_df(frak_mittel_norm, "Nach")
+df_all = rbind(df_raw, df_norm)
 
 # Neue kombinierte Gruppe: Fraktion + Condition
-df_all$Group <- paste(df_all$Fraction, df_all$Condition, sep = "_")
-df_all$Group <- factor(df_all$Group, levels = unique(df_all$Group))
+df_all$Group = paste(df_all$Fraction, df_all$Condition, sep = "_")
+df_all$Group = factor(df_all$Group, levels = unique(df_all$Group))
 
 # Plot: Vor und Nach als separate Farben innerhalb jeder Gruppe
 
@@ -335,7 +360,7 @@ ggplot(df_all, aes(x = Fraction, y = Value, fill = Condition)) +
   facet_wrap(~Normalization, ncol = 2) +  # nebeneinander
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 8)) +
-  scale_fill_manual(values = farben_condition) +
+  scale_fill_manual(values = treatment_colors) +
   labs(title = "Vergleich: Vor vs. Nach Normalisierung",
        x = "Fraktion", y = "Intensität", fill = "Bedingung")
 
@@ -343,11 +368,11 @@ ggplot(df_all, aes(x = Fraction, y = Value, fill = Condition)) +
 
 ## Reproduzierbarkeit
 
-Erklärung welche Korrelation wird uns abgeschaut haben:
+[Erklärung welche Korrelation wird uns abgeschaut haben:]{.underline}
 
-Pearson oder Spearmean = ohne Ränge weil wir ganz viele Nullen haben !! heißt [Pearson]{.underline}
+[Pearson oder Spearmean = ohne Ränge weil wir ganz viele Nullen haben !! heißt Pearson]{.underline}
 
-Vorgehen:
+[Vorgehen:]{.underline} muss noch erklärt werden wieso das oder wieso das
 
 ```{r}
 # Vektor für Korrelationen zwischen Spalten 1 & 2
@@ -397,18 +422,20 @@ rownames(kor_tabelle) = Fraktionsnamen
 kor_tabelle
 ```
 
-## Visualisierung von Reproduzierbarkeit
+## Visualisierung der Reproduzierbarkeit
 
-### Boxplot für die Tabelle
+### Violinplot für die R-Werte der Korrelationen
+
 **Beschriftung**
+
 ```{r}
-kor_long <- data.frame(
+kor_long = data.frame(
   Fraktion = rep(Fraktionsnamen, 3),
   Korrelation = c(kor_Spalte1_Spalte2, kor_Spalte2_Spalte3, kor_Spalte1_Spalte3),
   Paar = rep(c("Replikate 1&2", "Replikate 2&3", "Replikate 1&3"), each = 50)
 )
 
-Boxplot_Korrelationswerte <- ggplot(kor_long, aes(x = Paar, y = Korrelation, fill = Paar)) +
+Boxplot_Korrelationswerte = ggplot(kor_long, aes(x = Paar, y = Korrelation, fill = Paar)) +
   geom_boxplot() +
   theme_minimal() +
   labs(title = "Reproduzierbarkeit der Replikate (Pearson-Korrelation)",
@@ -416,88 +443,98 @@ Boxplot_Korrelationswerte <- ggplot(kor_long, aes(x = Paar, y = Korrelation, fil
        y = "Korrelationskoeffizient") +
   theme(legend.position = "none")
 
-p_violin <- ggplot(kor_long, aes(x = Paar, y = Korrelation, fill = Paar)) +
+p_violin = ggplot(kor_long, aes(x = Paar, y = Korrelation, fill = Paar)) +
   geom_violin(trim = FALSE) +
-  geom_boxplot(width = 0.1, fill = "white") +  # Boxplot als Overlay
-  theme_minimal() +
+  geom_boxplot(width = 0.1, fill = "white") +
   scale_fill_manual(values = c("#7E51A4", "#485571", "#504DA4")) +
-  labs(title = "Verteilung der Pearson-Korrelationen (Violinplot)",
-       x = "Paar von Replikaten",
-       y = "Korrelationskoeffizient") +
-  theme(legend.position = "none")
-
+  theme_minimal(base_size = 14) +
+  labs(
+    title = "Reproduzierbarkeit der Replikate (Pearson-Korrelation)",
+    y = "Korrelationskoeffizient",
+    x = NULL  # X-Achsentitel entfernen, Labels aber behalten
+  ) +
+  theme(
+    axis.title.y = element_text(margin = margin(r = 15)),  # Abstand Y-Achsentitel
+    axis.title.x = element_blank(),                        # kein X-Achsentitel
+    axis.ticks.x = element_blank(),                        # keine Ticks
+    axis.line.x = element_blank(),                         # keine Achsenlinie unten
+    legend.position = "none"
+  )
 
 print(p_violin)
 
-```
-
-### Scatterplots für alle Korealationen einzelnd
-
-```{r Scatterplost für Korrelationen, author = "Hasset"}
-library(stringr)
-library(dplyr)
-library(ggplot2)
-library(tidyr)
-
-# 1. Daten laden
-ms = MS_Table_norm
-
-# 2. Prüfen
-if (ncol(ms) == 0) stop("Die Tabelle hat keine Spalten. Bitte CSV prüfen.")
-cat("Geladene Spalten:\n")
-print(colnames(ms))
-
-# 3. Spaltennamen parsen
-info <- str_split_fixed(colnames(ms), "_", 3)
-if (ncol(info) < 3) stop("Spaltennamen sind nicht im erwarteten Format 'Fraction_Treatment_Replicate'.")
-
-colnames(info) <- c("Fraction", "Treatment", "Replicate")
-df_info <- data.frame(ColName = colnames(ms),
-                      Fraction = info[, "Fraction"],
-                      Treatment = info[, "Treatment"],
-                      Replicate = info[, "Replicate"],
-                      stringsAsFactors = FALSE)
-
-# 4. Plotbereich vorbereiten
-par(mfrow = c(2, 2), mar = c(4, 4, 2, 1))  # 2x2 Plots pro Seite
-
-# 5. Für jede Gruppe aus Fraktion + Treatment
-groups <- df_info %>% group_by(Fraction, Treatment) %>% group_split()
-
-for(group in groups) {
-  if(nrow(group) < 2) next  # Mind. 2 Replikate nötig für Vergleich
-
-  # Alle 2er-Kombinationen der Replikat-Spalten
-  combis <- combn(group$ColName, 2, simplify = FALSE)
-
-  for(pair in combis) {
-    col1 <- pair[1]
-    col2 <- pair[2]
-    
-    x <- as.numeric(ms[[col1]])
-    y <- as.numeric(ms[[col2]])
-    valid <- which(!is.na(x) & !is.na(y))
-
-    if(length(valid) >= 2) {
-      plot(x[valid], y[valid],
-           pch = 20, cex = 0.6,
-           xlab = col1,
-           ylab = col2,
-           main = paste(group$Fraction[1], group$Treatment[1]))
-      
-      r <- cor(x[valid], y[valid])
-      legend("topleft", legend = paste("R =", round(r, 2)), bty = "n")
-    } else {
-      plot.new()
-      title(main = paste("Nicht genug Daten für", col1, "vs", col2))
-    }
-  }
-}
+ggsave(filename = "Postervisuals/Violinplot_correlations.png", plot = p_violin, width = 8, height = 6)
 ```
 
 ### Scatterplot für Mediane Korrelation
 
-**??? wollen wir den Überhaupt noch **
+### Beispiel-plot für den Median-R-Wert
+
+```{r}
+# 1. Median berechnen, NA-Werte ignorieren
+median_r = median(kor_tabelle, na.rm = TRUE)
+
+# 2. Matrix der absoluten Differenzen zum Median
+diffs = abs(kor_tabelle - median_r)
+
+# 3. Index des minimalen Unterschieds (NA werden automatisch ignoriert)
+min_index = which(diffs == min(diffs, na.rm = TRUE), arr.ind = TRUE)[1, , drop = FALSE]
+
+# 4. Fraktion und Paar auslesen (Fallback falls Namen fehlen)
+median_fraktion = rownames(kor_tabelle)[min_index[1]] %||% min_index[1]
+median_paar = colnames(kor_tabelle)[min_index[2]] %||% min_index[2]
+
+# 5. Ergebnis ausgeben
+cat("Medianer Korrelationswert:", round(median_r, 3), "\n")
+cat("Nächster Wert in Tabelle:", round(kor_tabelle[min_index], 3), "\n")
+cat("Plot für Fraktion:", median_fraktion, "| Paar:", median_paar, "\n")
+
+
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+plot_correlation = function(data, col1, col2, color = "", save_path = "") {
+  # Daten auf vollständige Fälle filtern
+  df = data %>%
+    select(all_of(c(col1, col2))) %>%
+    mutate(Protein = rownames(data)) %>%
+    pivot_longer(-Protein, names_to = "Sample", values_to = "Value") %>%
+    pivot_wider(names_from = Sample, values_from = Value) %>%
+    filter(complete.cases(.))
+  
+  # Korrelation berechnen
+  r = cor(df[[col1]], df[[col2]])
+  r_text = paste0("R = ", round(r, 2))
+  
+  # ggplot erstellen
+  p = ggplot(df, aes_string(x = col1, y = col2)) +
+    geom_point(alpha = 0.6, color = color) +
+    geom_smooth(method = "lm", se = FALSE, color = "#A786C2") +
+    labs(title = paste("Scatterplot:", col1, "vs", col2),
+         x = col1,
+         y = col2) +
+    theme_minimal() +
+    annotate("text", x = min(df[[col1]], na.rm = TRUE), 
+             y = max(df[[col2]], na.rm = TRUE), 
+             label = r_text, hjust = 0, vjust = 1, size = 10, color = color)
+  
+  # Plot anzeigen
+  print(p)
+  
+  # Optional speichern
+  if (!is.null(save_path)) {
+    ggsave(filename = save_path, plot = p, width = 8, height = 8)
+  }
+}
+
+# Beispielaufruf:
+plot_correlation(MS_Table_norm, "Fraction18_Ctrl_Rep2", "Fraction18_Ctrl_Rep3", color = "black", save_path = "Postervisuals/vergleich_plot_ggplot.png")
+
+```
 
 # Data Exploration/Description (must contain descriptive statistics + graphics)
 
@@ -508,21 +545,469 @@ for(group in groups) {
 -   Visualize the inter-dependencies among specific samples/features of interest
 -   Check some of your hypothesis like - is something high/low between two conditions etc
 
-# Peak Identification (must contain descriptive statistics + graphics)
+# Peak Identikifaiton
 
-### Goal:
+```{r}
+# Subtabellen für jedes Replikat
+for (i in 1:6) {
 
-# Gaussian fit (optional) (must contain descriptive statistics + graphics)
+  spalten_index = seq(from = i, to = 150, by = 6) 
+  teilmatrix = MS_Table_norm[, spalten_index]
+  
+  assign(Treatmentnamen[i], teilmatrix) # neue Subtabellen, richtig benannt
+}
+```
 
-### Goal:
+```{r}
+# Mittelwerte für Treatments als Tabelle
 
-# Peak Compairson (Ctrl vs. RNase) (must contain descriptive statistics + graphics)
+Mittelwert_matrix = t(apply(MS_Table_norm, 1, function(row) {
+  sapply(1:50, function(i) {
+    spalten_index = ((i - 1) * 3 + 1):(i * 3)
+    mean(row[spalten_index])
+  })
+}))
 
-### Goal:
+# Jeden zweiten Mittelwert auswählen
+Mittelwerte_Kontrolle = as.data.frame(Mittelwert_matrix[, seq(1, 50, by=2)])
+Mittelwerte_RNAse = as.data.frame(Mittelwert_matrix[, seq(2, 50, by=2)])
+
+colnames(Mittelwerte_Kontrolle) = paste0(Fraktionsnamen[seq(1, 50, by=2)])
+colnames(Mittelwerte_RNAse) = paste0(Fraktionsnamen[seq(1, 50, by=2)])
+  
+```
+
+## Maxima Bestimmung
+
+Berücksichtigt: Plateaus, gespaltene Peaks, Randmaxima, Threshold
+
+```{r}
+find_maxima = function(mat, threshold = 2) {
+  result = do.call(rbind, lapply(1:nrow(mat), function(i) {
+    x = mat[i, ]
+    
+    # Normale Maxima: zweite Ableitung mit Vorzeichenwechsel
+    idx = which(diff(sign(diff(x))) == -2) + 1 
+    
+    # Plateaumaxima
+    rle_x = rle(x)  # Run-Length-Encoding der Werte
+    lengths = rle_x$lengths
+    values = rle_x$values
+    ends = cumsum(lengths)
+    starts = ends - lengths + 1
+    
+    plateau_idx = c()
+    for (j in seq_along(values)) {
+      # Nur Plateaus mit Länge > 1 prüfen
+      if (lengths[j] > 1) {
+        start_pos = starts[j]
+        end_pos = ends[j]
+        
+        # Werte links und rechts des Plateaus
+        left_val = if (start_pos > 1) x[start_pos - 1] else -Inf
+        right_val = if (end_pos < length(x)) x[end_pos + 1] else -Inf
+        
+        # Plateau ist lokales Maximum, wenn Wert >= Nachbarn
+        if (values[j] >= left_val && values[j] >= right_val) {
+          # Plateau-Maximum: Indize des Plateausstartpunkts
+          plateau_idx = c(plateau_idx, round(mean(start_pos:end_pos)))
+        }
+      }
+    }
+    
+    # Kombination von normalen Maxima und Plateau-Maxima
+    all_idx = sort(unique(c(idx, plateau_idx))) #unique: falls Werte doppelt werden sie entfernt, sort: sotieren der Indizes in aufsteigender Reihenfolge
+    
+    # Randmaxima prüfen
+    if (x[1] > x[2]) {all_idx = c(1, all_idx)}
+    if (x[length(x)] > x[length(x)-1]) {all_idx = c(all_idx, length(x))}
+    
+    # nur Werte > threshold = 2% behalten
+    all_idx = all_idx[x[all_idx] > threshold]
+    
+    # Peaks bereinigen: Wenn zwei Peaks nur einen Wert dazwischen haben, den kleineren entfernen
+    if (length(all_idx) >= 2) {
+      to_remove = c()
+      for (k in 1:(length(all_idx)-1)) {
+        if (all_idx[k+1] - all_idx[k] == 2) {
+          # Indizes der Peaks
+          peak1 = all_idx[k]
+          peak2 = all_idx[k+1]
+          if (x[peak1] >= x[peak2]) {
+            to_remove = c(to_remove, peak2)
+          } else {
+            to_remove = c(to_remove, peak1)
+          }
+        }
+      } # Entfernen des niedrigeren Wert
+      if (length(to_remove) > 0) {
+        all_idx = setdiff(all_idx, to_remove)
+      }
+    }
+    
+    if (length(all_idx) > 0) {
+      data.frame(
+        Protein = Proteinnamen[i],
+        Zeile = i,
+        Fraktion = all_idx,
+        Wert = x[all_idx]
+      )
+    } else {
+      NULL
+    }
+  }))
+  
+  rownames(result) = NULL
+  return(result)
+}
+
+# Maxima für Mittelwerte aus Triplikaten
+Mittelwerte_Kontrolle_mat = as.matrix(sapply(Mittelwerte_Kontrolle, as.numeric))
+Mittelwerte_RNAse_mat = as.matrix(sapply(Mittelwerte_RNAse, as.numeric))
+
+Maxima_Mittelwerte_Kontrolle = find_maxima(Mittelwerte_Kontrolle_mat)
+Maxima_Mittelwerte_RNAse = find_maxima(Mittelwerte_RNAse_mat)
+```
+
+## Schulterpunkte
+
+```{r}
+# Funktion zum Finden der Schulterpunkte
+find_shoulders = function(binary_mat, Proteinnamen) {
+  result = do.call(rbind, lapply(1:nrow(binary_mat), function(i) {
+    x = binary_mat[i, ]
+    rle_x = rle(x)
+    lengths = rle_x$lengths
+    values = rle_x$values
+    ends = cumsum(lengths)
+    starts = ends - lengths + 1
+    
+    schulter_idx = c()
+    for (j in seq_along(values)) {
+      if (values[j] == 1 && lengths[j] >= 4) {
+        start_pos = starts[j]
+        end_pos = ends[j]
+        schulter_idx = c(schulter_idx, round(mean(start_pos:end_pos)))
+      }
+    }
+    
+    if (length(schulter_idx) > 0) {
+      data.frame(
+        Protein = Proteinnamen[i],
+        Zeile = i,
+        Fraktion = schulter_idx
+      )
+    } else {
+      NULL
+    }
+  }))
+  
+  rownames(result) = NULL
+  return(result)
+}
+```
+
+### Schulterpunkte für Kontrolle
+
+```{r}
+#vorübergehenes Entfernen von Proteinmenge die unter Threshold liegt
+Schulter_Mittelwerte_Kontrolle = ifelse(Mittelwerte_Kontrolle > 2, 1, 0) # wenn größer als 2 dann wird es zu 1 sonst wird der Wert auf 0 gesetzt
+
+# vorübergehendes Entfernen von Bereichen um Maxima > werden auf 0 gesetzt: im Umkreis um 3 
+# Schleife über alle Maxima
+for (i in 1:nrow(Maxima_Mittelwerte_Kontrolle)) {
+  Protein = Maxima_Mittelwerte_Kontrolle$Zeile[i]      # Zeile (Protein)
+  Fraktion = Maxima_Mittelwerte_Kontrolle$Fraktion[i]  # Spalte (Fraktion)
+  
+  # Bereichsgrenzen für die Spalten berechnen (Grenzen prüfen!)
+  Fraktions_bereich = max(1, Fraktion - 3):min(ncol(Schulter_Mittelwerte_Kontrolle), Fraktion + 3)
+  
+  # Nur in dieser Zeile (Protein) die ±3 Spalten auf 0 setzen
+  Schulter_Mittelwerte_Kontrolle[Protein, Fraktions_bereich] = 0
+}
+
+Schulterpunkte_Kontrolle = find_shoulders(Schulter_Mittelwerte_Kontrolle, Proteinnamen)
+
+```
+
+### Schulterpunkte für RNAse
+
+```{r}
+#vorübergehenes Entfernen von Proteinmenge die unter Threshold liegt
+Schulter_Mittelwerte_RNAse = ifelse(Mittelwerte_RNAse > 2, 1, 0) # wenn größer als 2 dann wird es zu 1 sonst wird der Wert auf 0 gesetzt
+
+# vorübergehendes Entfernen von Bereichen um Maxima > werden auf 0 gesetzt: im Umkreis um 3 
+# Schleife über alle Maxima
+for (i in 1:nrow(Maxima_Mittelwerte_RNAse)) {
+  Protein = Maxima_Mittelwerte_RNAse$Zeile[i]      # Zeile (Protein)
+  Fraktion = Maxima_Mittelwerte_RNAse$Fraktion[i]  # Spalte (Fraktion)
+  
+  # Bereichsgrenzen für die Spalten berechnen (Grenzen prüfen!)
+  Fraktions_bereich = max(1, Fraktion - 3):min(ncol(Schulter_Mittelwerte_RNAse), Fraktion + 3)
+  
+  # Nur in dieser Zeile (Protein) die ±3 Spalten auf 0 setzen
+  Schulter_Mittelwerte_RNAse[Protein, Fraktions_bereich] = 0
+}
+
+
+Schulterpunkte_RNAse = find_shoulders(Schulter_Mittelwerte_RNAse, Proteinnamen)
+```
+
+#### Zusammenführen der Maxima
+
+Ich würde das nochmal bisschen verändern aber so funktioniert es auf jeden Fall und wir haben Tabellen in denen jetzt alle Maxima & Schulterpunkte haben zum Weiterarbeiten
+
+```{r}
+# Für Schulterpunkte Wert hinzufügen
+Schulterpunkte_Kontrolle$Fraktion_gerundet = round(Schulterpunkte_Kontrolle$Fraktion)
+Schulterpunkte_Kontrolle$Wert = mapply(function(zeile, fraktion) {
+  Mittelwerte_Kontrolle[zeile, fraktion]
+}, Schulterpunkte_Kontrolle$Zeile, Schulterpunkte_Kontrolle$Fraktion_gerundet)
+
+Schulterpunkte_RNAse$Fraktion_gerundet = round(Schulterpunkte_RNAse$Fraktion)
+Schulterpunkte_RNAse$Wert = mapply(function(zeile, fraktion) {
+  Mittelwerte_RNAse[zeile, fraktion]
+}, Schulterpunkte_RNAse$Zeile, Schulterpunkte_RNAse$Fraktion_gerundet)
+
+
+# Markieren und zusammenfügen Kontrolle
+Maxima_Mittelwerte_Kontrolle$Typ = "Maxima"
+Schulterpunkte_Kontrolle$Typ = "Schulter"
+
+Combined_Kontrolle = rbind(
+  Maxima_Mittelwerte_Kontrolle[, c("Protein", "Zeile", "Fraktion", "Wert", "Typ")],
+  Schulterpunkte_Kontrolle[, c("Protein", "Zeile", "Fraktion", "Wert", "Typ")]
+)
+Combined_Kontrolle = Combined_Kontrolle[order(Combined_Kontrolle$Zeile, Combined_Kontrolle$Fraktion), ]
+
+# Markieren und zusammenfügen RNAse
+Maxima_Mittelwerte_RNAse$Typ = "Maxima"
+Schulterpunkte_RNAse$Typ = "Schulter"
+
+Combined_RNAse = rbind(
+  Maxima_Mittelwerte_RNAse[, c("Protein", "Zeile", "Fraktion", "Wert", "Typ")],
+  Schulterpunkte_RNAse[, c("Protein", "Zeile", "Fraktion", "Wert", "Typ")]
+)
+Combined_RNAse = Combined_RNAse[order(Combined_RNAse$Zeile, Combined_RNAse$Fraktion), ]
+```
+
+# Vergleich von RNAse & Kontrolle
+
+### p-Werte für Amplitudendifferenz
+
+```{r}
+# P-Werte bestimmen für die verschiedenen Maxima
+# Spaltennamen dedr Subtabellen nue benennen, um darauf zugreifen zu können über Combined_Kontrolle und Combined_RNAse
+Ctrl1_frakt = Ctrl1_norm
+colnames(Ctrl1_frakt) = c(1:25)
+Ctrl2_frakt = Ctrl2_norm
+colnames(Ctrl2_frakt) = c(1:25)
+Ctrl3_frakt = Ctrl3_norm
+colnames(Ctrl3_frakt) = c(1:25)
+
+RNAse1_frakt = RNAse1_norm
+colnames (RNAse1_frakt) = c(1:25)
+RNAse2_frakt = RNAse2_norm
+colnames(RNAse2_frakt) = c(1:25)
+RNAse3_frakt = RNAse3_norm
+colnames(RNAse3_frakt) = c(1:25)
+
+# Listen bilden aus den Replikaten von Kontrolle und RNAse
+ctrl_reps = list(Ctrl1_frakt, Ctrl2_frakt, Ctrl3_frakt)
+rnase_reps = list(RNAse1_frakt, RNAse2_frakt, RNAse3_frakt)
+
+# Datframe von Kontrolle und RNAse mit nur den Positionen der Peaks
+peaks_ctrl = data.frame(Protein = Combined_Kontrolle$Protein, Fraktion = Combined_Kontrolle$Fraktion, Treatment = 'Kontrolle')
+peaks_rnase = data.frame(Protein = Combined_RNAse$Protein, Fraktion = Combined_RNAse$Fraktion, Treatment = 'RNase')
+
+
+# Gemeinsame Protein-Fraktion-Kombinationen von Kontrolle und RNAse bestimmen
+shared_peaks = merge(peaks_ctrl, peaks_rnase, by = c("Protein", "Fraktion"))
+
+# Dataframe für die Ergebnisse aufstellen
+p_Werte = data.frame()
+
+for (i in 1:nrow(shared_peaks)) {
+  protein  = shared_peaks$Protein[i]
+  fraktion = as.character(shared_peaks$Fraktion[i])
+  
+  # Kontrollwerte extrahieren: über Position in shared peaks
+  ctrl_vals = sapply(ctrl_reps, function(df) {
+    if (protein %in% rownames(df) && fraktion %in% colnames(df)) {
+      return(df[protein, fraktion])
+    } else {
+      return(NA)
+    }
+  })
+
+  # RNase-Werte extrahieren: über Position in shared peaks
+  rnase_vals = sapply(rnase_reps, function(df) {
+    if (protein %in% rownames(df) && fraktion %in% colnames(df)) {
+      return(df[protein, fraktion])
+    } else {
+      return(NA)
+    }
+  })
+   # NA Werte entfernen
+  ctrl_vals = na.omit(ctrl_vals)
+  rnase_vals = na.omit(rnase_vals)
+
+  # Wenn nötig: Mini-Störung hinzufügen bei identischen Werten
+  if (length(ctrl_vals) >= 2 && all(abs(ctrl_vals - ctrl_vals[1]) < 1e-10)) {
+    ctrl_vals[2] = ctrl_vals[2] + 1e-6
+  }
+  if (length(rnase_vals) >= 2 && all(abs(rnase_vals - rnase_vals[1]) < 1e-10)) {
+    rnase_vals[2] = rnase_vals[2] + 1e-6
+  }
+
+  # t-Test nur wenn beide Gruppen mindestens 2 Werte haben
+  # Annahme für den T-Test, dass Replikate normalverteilt sind, um den T-Test überhaupt durchführen zu können
+  # Varianztest mit F-Test, um zu gucken, ob Kontrolle und RNAse gleiche Varianz haben: wichtig für t-Test Durchführung
+
+  if (length(ctrl_vals) >= 2 && length(rnase_vals) >= 2) {
+    ftest_p = tryCatch(var.test(ctrl_vals, rnase_vals)$p.value, error = function(e) NA) # nur auf den p.value zugreifen im F-Test
+    t_p = tryCatch(
+      t.test(ctrl_vals, rnase_vals, var.equal = (ftest_p > 0.05))$p.value, # mögliche Fehler mit tryCatch abfangen
+      error = function(e) NA
+    )
+  } 
+  p_Werte = rbind(p_Werte, data.frame(Protein = protein, Fraktion = fraktion, P_Value = t_p))
+}
+
+
+# FDR-Korrektur
+p_Werte$adj_p = p.adjust(p_Werte$P_Value, method = "BH")
+
+p_werte_005 = p_Werte$Protein[which(p_Werte$adj_p <= 0.05)]
+```
+
+```{r}
+liste_maxima_Ctrl = split(Combined_Kontrolle[, c("Fraktion", "Wert")], Combined_Kontrolle$Protein)
+liste_maxima_RNAse = split(Combined_RNAse[, c("Fraktion", "Wert")], Combined_RNAse$Protein)
+
+library(pracma)  # Für trapz()
+
+hol_shifts = function(protein, threshold_rel = 0.3) {
+  window = 2  # Größe des Fraktionsfensters
+
+  # Maxima holen
+  ctrl_maxima = liste_maxima_Ctrl[[protein]]
+  rnase_maxima = liste_maxima_RNAse[[protein]]
+
+  if (is.null(ctrl_maxima)) ctrl_maxima = data.frame(Fraktion = numeric(0), Wert = numeric(0))
+  if (is.null(rnase_maxima)) rnase_maxima = data.frame(Fraktion = numeric(0), Wert = numeric(0))
+  
+  if (nrow(ctrl_maxima) > 0) {
+    max_ctrl = max(ctrl_maxima$Wert)
+    ctrl_maxima = ctrl_maxima[ctrl_maxima$Wert >= threshold_rel * max_ctrl, ]
+  }
+  
+  if (nrow(rnase_maxima) > 0) {
+    max_rnase = max(rnase_maxima$Wert)
+    rnase_maxima = rnase_maxima[rnase_maxima$Wert >= threshold_rel * max_rnase, ]
+  }
+
+  nb_ctrl_maxima = nrow(ctrl_maxima)
+  nb_rnase_maxima = nrow(rnase_maxima)
+
+  # Abstände der Maxima
+  abstände = c()
+  for (i in 1:nb_ctrl_maxima) {
+    for (j in 1:nb_rnase_maxima) {
+      abstand = rnase_maxima$Fraktion[j] - ctrl_maxima$Fraktion[i]
+      abstände = c(abstände, abstand)
+    }
+  }
+
+  # Funktion zur Flächenberechnung mit Trapezregel über Replikat-Dataframes
+  calc_area = function(df_list, protein, center_frac, window) {
+    sapply(df_list, function(df) {
+      if (protein %in% rownames(df)) {
+        fracs = as.numeric(colnames(df))
+        idxs = which(fracs >= (center_frac - window) & fracs <= (center_frac + window))
+        if (length(idxs) >= 2) {
+          x_vals = fracs[idxs]
+          y_vals = as.numeric(df[protein, idxs])
+          y_vals = na.omit(y_vals)
+          if (length(y_vals) == length(x_vals) && length(y_vals) >= 2) {
+            return(trapz(x_vals, y_vals))
+          }
+        }
+      }
+      return(NA)
+    })
+  }
+
+  # Amplitudenverlust + Fläche unter Kontroll-Peaks
+  loss_list = c()
+  flaeche_kontrolle = c()
+  for (i in 1:nb_ctrl_maxima) {
+    fraktion_i = as.character(ctrl_maxima$Fraktion[i])
+    amp_ctrl = ctrl_maxima$Wert[i]
+
+    amp_rnase = Combined_RNAse$Wert[Combined_RNAse$Protein == protein & Combined_RNAse$Fraktion == fraktion_i]
+    if (length(amp_rnase) == 0) amp_rnase = 0
+
+    loss_list = c(loss_list, amp_ctrl - amp_rnase)
+
+    flächen_vals = calc_area(ctrl_reps, protein, as.numeric(fraktion_i), window)
+    flaeche_kontrolle = c(flaeche_kontrolle, mean(na.omit(flächen_vals)))
+  }
+
+  # Amplitudengewinn + Fläche unter RNase-Peaks
+  gain_list = c()
+  flaeche_rnase = c()
+  for (i in 1:nb_rnase_maxima) {
+    fraktion_i = as.character(rnase_maxima$Fraktion[i])
+    amp_rnase = rnase_maxima$Wert[i]
+
+    amp_ctrl = Combined_Kontrolle$Wert[Combined_Kontrolle$Protein == protein & Combined_Kontrolle$Fraktion == fraktion_i]
+    if (length(amp_ctrl) == 0) amp_ctrl = 0
+
+    gain_list = c(gain_list, amp_rnase - amp_ctrl)
+
+    flächen_vals = calc_area(rnase_reps, protein, as.numeric(fraktion_i), window)
+    flaeche_rnase = c(flaeche_rnase, mean(na.omit(flächen_vals)))
+  }
+
+  # p-Werte für Peaks aus vorher berechnetem p_Werte
+  p_values = sapply(ctrl_maxima$Fraktion, function(f) {
+    p_val = p_Werte$adj_p[p_Werte$Protein == protein & p_Werte$Fraktion == f]
+    if (length(p_val) == 0) NA else p_val[1]
+  })
+
+  return(list(
+    Protein = protein,
+    Anzahl_Kontroll_Maxima = nb_ctrl_maxima,
+    Anzahl_RNase_Maxima = nb_rnase_maxima,
+    Kontroll_Maxima = ctrl_maxima$Fraktion,
+    RNAse_Maxima = rnase_maxima$Fraktion,
+    Abstände_Maxima = abstände,
+    Shift_idx = sum(abstände),
+    Verlust_Amplituden = loss_list,
+    Gewinn_Amplituden = gain_list,
+    Summierter_Verlust = sum(loss_list),
+    Summierter_Gewinn = sum(gain_list),
+    Fläche_Kontrolle = flaeche_kontrolle,
+    Fläche_RNase = flaeche_rnase,
+    p_Werte = p_values
+  ))
+}
+
+zeile = '2A5A_HUMAN'
+
+hol_shifts(zeile)
+```
 
 # RNA-dependent Proteins Selection Criteria (must contain descriptive statistics + graphics)
 
-### Goal:
+## Funktion mit allen relevanten paramtern erstellen, die für jedes Protein bestimmt werden
+
+-   maxima werte (amplitude) -\> threshold für relevantes maximum festlegen
+-   differenz der amplituden -\> gain (rnase) oder loss (Kontrolle)?
+-   proteinmenge (area under the curve) -
+-   unterschied in position der maxima - Abstand
+-   p werte dazu schreiben \### Goal:
 
 # Application of Selected Criteria to Identify RNA-dependent Proteins (must contain descriptive statistics + graphics)
 
