@@ -724,14 +724,14 @@ klassifiziere_protein_shift_streng_v2 <- function(row) {
     kategorie <- "no_shift"
   }
   
-  return(list(Score = score, Kategorie = kategorie))
+  return(list(Score = score, category = kategorie))
 }
 
 # Apply and save the function across all proteins and their categories
 ergebnisse_liste <- apply(df_ergebnisse, 1, klassifiziere_protein_shift_streng_v2)
 #Add Shift_Score and Shift_Kategorie to df_ergebnisse
 df_ergebnisse$Shift_Score <- sapply(ergebnisse_liste, function(x) x$Score)
-df_ergebnisse$Shift_Kategorie <- sapply(ergebnisse_liste, function(x) x$Kategorie)
+df_ergebnisse$Shift_Category <- sapply(ergebnisse_liste, function(x) x$category)
 
 
 ```
