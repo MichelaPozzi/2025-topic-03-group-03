@@ -15,7 +15,7 @@ MS_Table_norm = read.table("Datensätze/MS_Table.norm.csv", header=TRUE, row.nam
 ```{r}
 install.packages("pracma")
 ```
-#Goal: Now we have the normalized values for all proteins and can examine our dataset in detail. Our goal was to identify differences between the control and RNase samples. To do this, we first determined both absolute and local maxima for all proteins. To take it a step further, we wanted to create our own function that can assign each protein to a shift category based on criteria we defined ourselves. So now, let’s take a closer look at our proteins.
+#Goal: Now we have the normalized values for all proteins and can examine our dataset in detail. Our goal is to identify differences between the control and RNase samples. To do this, we first determine both absolute and local maxima for all proteins. To take it a step further, we want to create our own function that can assign each protein to a shift category based on criteria we define ourselves. So now, let’s take a closer look at our proteins.
 
 # Data exploration
 
@@ -24,24 +24,25 @@ install.packages("pracma")
 Fraktionsnamen = c('Fraction1_Ctrl', 'Fraction1_RNAse', 'Fraction2_Ctrl', 'Fraction2_RNAse','Fraction3_Ctrl', 'Fraction3_RNAse','Fraction4_Ctrl', 'Fraction4_RNAse','Fraction5_Ctrl', 'Fraction5_RNAse','Fraction6_Ctrl', 'Fraction6_RNAse','Fraction7_Ctrl', 'Fraction7_RNAse','Fraction8_Ctrl', 'Fraction8_RNAse','Fraction9_Ctrl', 'Fraction9_RNAse','Fraction10_Ctrl', 'Fraction10_RNAse','Fraction11_Ctrl', 'Fraction11_RNAse','Fraction12_Ctrl', 'Fraction12_RNAse','Fraction13_Ctrl', 'Fraction13_RNAse','Fraction14_Ctrl', 'Fraction14_RNAse','Fraction15_Ctrl', 'Fraction15_RNAse','Fraction16_Ctrl', 'Fraction16_RNAse','Fraction17_Ctrl', 'Fraction17_RNAse','Fraction18_Ctrl', 'Fraction18_RNAse','Fraction19_Ctrl', 'Fraction19_RNAse','Fraction20_Ctrl', 'Fraction20_RNAse','Fraction21_Ctrl', 'Fraction21_RNAse','Fraction22_Ctrl', 'Fraction22_RNAse','Fraction23_Ctrl', 'Fraction23_RNAse','Fraction24_Ctrl', 'Fraction24_RNAse','Fraction25_Ctrl', 'Fraction25_RNAse')
 ```
 
+#create a vector of all protein names
 ```{r}
 Proteinnamen = rownames(MS_Table)
 ```
 
+#create subtables for each replicate from the normalized table
 ```{r}
-# Subtabellen für jedes Replikat
 for (i in 1:6) {
 
   spalten_index = seq(from = i, to = 150, by = 6) 
   teilmatrix = MS_Table_norm[, spalten_index]
   
-  assign(Treatmentnamen[i], teilmatrix) # neue Subtabellen, richtig benannt
+  assign(Treatmentnamen[i], teilmatrix) # New subtables named correctly
 }
 ```
 
+#create two mean value tables for each replicate, one for control and one for RNAse
 ```{r}
-# Mittelwerte für Treatments als Tabelle
-
+# Mean values from the replicates
 Mittelwert_matrix = t(apply(MS_Table_norm, 1, function(row) {
   sapply(1:50, function(i) {
     spalten_index = ((i - 1) * 3 + 1):(i * 3)
@@ -49,50 +50,57 @@ Mittelwert_matrix = t(apply(MS_Table_norm, 1, function(row) {
   })
 }))
 
-# Jeden zweiten Mittelwert auswählen
+# Creating two mean subtables for each treatment
 Mittelwerte_Kontrolle = as.data.frame(Mittelwert_matrix[, seq(1, 50, by=2)])
 Mittelwerte_RNAse = as.data.frame(Mittelwert_matrix[, seq(2, 50, by=2)])
 
+# Naming sub-tables correctly
 colnames(Mittelwerte_Kontrolle) <- paste0(Fraktionsnamen[seq(1, 50, by=2)])
 colnames(Mittelwerte_RNAse) <- paste0(Fraktionsnamen[seq(1, 50, by=2)])
   
 ```
 
+#Protein distribution of the two treatments for an example protein to get an overview of the differences
 ```{r}
-zeile = '4F2_HUMAN'
+zeile = 'ACOT9_HUMAN'
 
-# Y-Achsen-Limits berechnen
-# Werte aus beiden Datensätzen kombinieren
-alle_werte <- c(Ctrl1_norm[zeile,], RNAse1_norm[zeile,])
+#Combine y-values for both treatments
+alle_werte <- c(Mittelwerte_Kontrolle[zeile,], Mittelwerte_RNAse[zeile,])
 ylim_bereich <- range(alle_werte, na.rm = TRUE)
 
-# Erster Plot mit manuellem ylim
-plot(1:25, Ctrl1_norm[zeile,], type = "l", col = 'purple',
-     xlab = "fraction", ylab = "Intensity", main = "Proteinverteilung",
+#more place for the legend
+par(mar = c(5, 4, 6, 2))
+
+#First plot for control
+plot(1:25, Mittelwerte_Kontrolle[zeile,], type = "l", col = 'purple',
+     xlab = "fraction", ylab = "Intensity", main = "Protein distribution",
      ylim = ylim_bereich)
 
-# Zweiter Plot hinzufügen
-lines(1:25, RNAse1_norm[zeile,], col = "darkblue")
+#Second plot for RNAse
+lines(1:25, Mittelwerte_RNAse[zeile,], col = "darkblue")
 
-# Legende
-legend("topright", legend = c("Ctrl1_norm", "RNAse1_norm"),
-       col = c("purple", "darkblue"), lty = 1, cex = 0.8)
+#Create legend
+legend("topright", inset = c(0, 0.02),  
+       legend = c("Control", "RNAse"),
+       col = c("purple", "darkblue"),
+       lty = 1, cex = 0.6,              
+       bty = "n") 
 ```
 
-## Maxima Bestimmung
+## Determining the maximum values
 
-Berücksichtigt: Plateaus, gespaltene Peaks, Randmaxima, Threshold
-
+# Now we determine the maximum values using a function that we can then apply to all proteins. The threshold value is set to 2 and, in addition to the local and absolute maxima, plateaus and edge maxima are also taken into account.
 ```{r}
+#Set up function and set threshold value to 2
 find_maxima = function(mat, threshold = 2) {
   result = do.call(rbind, lapply(1:nrow(mat), function(i) {
     x = mat[i, ]
     
-    # Normale Maxima: zweite Ableitung mit Vorzeichenwechsel
+    # normal Maxima: look at the first numerical derivative, if there is a sign change it is a maximum
     idx = which(diff(sign(diff(x))) == -2) + 1 
     
-    # Plateaumaxima
-    rle_x = rle(x)  # Run-Length-Encoding der Werte
+    # Find plateau maxima: each plateau is checked for a local maximum, if the plateau value is greater than or equal to its direct neighbors, the average value of the plateau is calculated and saved
+    rle_x = rle(x)  # Run-Length-Encoding 
     lengths = rle_x$lengths
     values = rle_x$values
     ends = cumsum(lengths)
@@ -100,39 +108,38 @@ find_maxima = function(mat, threshold = 2) {
     
     plateau_idx = c()
     for (j in seq_along(values)) {
-      # Nur Plateaus mit Länge > 1 prüfen
+      # only check Plateaus with lengths > 1 
       if (lengths[j] > 1) {
         start_pos = starts[j]
         end_pos = ends[j]
         
-        # Werte links und rechts des Plateaus
+        # values right and left of the plateau
         left_val = if (start_pos > 1) x[start_pos - 1] else -Inf
         right_val = if (end_pos < length(x)) x[end_pos + 1] else -Inf
         
-        # Plateau ist lokales Maximum, wenn Wert >= Nachbarn
+        # Plateau is a lokal Maximum, if it´s value >= neighbor
         if (values[j] >= left_val && values[j] >= right_val) {
-          # Plateau-Maximum: Indize des Plateausstartpunkts
           plateau_idx = c(plateau_idx, round(mean(start_pos:end_pos)))
         }
       }
     }
     
-    # Kombination von normalen Maxima und Plateau-Maxima
-    all_idx = sort(unique(c(idx, plateau_idx))) #unique: falls Werte doppelt werden sie entfernt, sort: sotieren der Indizes in aufsteigender Reihenfolge
+    # Combine normal maxima and plateau maxima
+    all_idx = sort(unique(c(idx, plateau_idx))) #unique: if values are duplicated they are removed, sort: sort the indices in ascending order
     
-    # Randmaxima prüfen
+    # check edge maxima
     if (x[1] > x[2]) {all_idx = c(1, all_idx)}
     if (x[length(x)] > x[length(x)-1]) {all_idx = c(all_idx, length(x))}
     
-    # nur Werte > threshold = 2% behalten
+    # only keep values > threshold = 2%
     all_idx = all_idx[x[all_idx] > threshold]
     
-    # Peaks bereinigen: Wenn zwei Peaks nur einen Wert dazwischen haben, den kleineren entfernen
+    # Clean up peaks: If two peaks have only one value between them, remove the smaller one
     if (length(all_idx) >= 2) {
       to_remove = c()
       for (k in 1:(length(all_idx)-1)) {
         if (all_idx[k+1] - all_idx[k] == 2) {
-          # Indizes der Peaks
+          # Indices of the peaks
           peak1 = all_idx[k]
           peak2 = all_idx[k+1]
           if (x[peak1] >= x[peak2]) {
@@ -141,7 +148,7 @@ find_maxima = function(mat, threshold = 2) {
             to_remove = c(to_remove, peak1)
           }
         }
-      } # Entfernen des niedrigeren Wert
+      } # remove the lower value
       if (length(to_remove) > 0) {
         all_idx = setdiff(all_idx, to_remove)
       }
@@ -163,7 +170,7 @@ find_maxima = function(mat, threshold = 2) {
   return(result)
 }
 
-# Maxima für Mittelwerte aus Triplikaten
+# Apply maxima function to our mean value tables for both treatments
 Mittelwerte_Kontrolle_mat = as.matrix(sapply(Mittelwerte_Kontrolle, as.numeric))
 Mittelwerte_RNAse_mat = as.matrix(sapply(Mittelwerte_RNAse, as.numeric))
 
@@ -171,10 +178,11 @@ Maxima_Mittelwerte_Kontrolle = find_maxima(Mittelwerte_Kontrolle_mat)
 Maxima_Mittelwerte_RNAse = find_maxima(Mittelwerte_RNAse_mat)
 ```
 
-## Schulterpunkte
+## shoulder points
 
+#Groups of adjacent fractions (at least 4 fractions next to each other) were sought that were not identified as maxima, but still showed a large amount of protein.
 ```{r}
-# Funktion zum Finden der Schulterpunkte
+# Create a function for finding the shoulder points
 find_shoulders = function(binary_mat, Proteinnamen) {
   result = do.call(rbind, lapply(1:nrow(binary_mat), function(i) {
     x = binary_mat[i, ]
@@ -209,60 +217,60 @@ find_shoulders = function(binary_mat, Proteinnamen) {
 }
 ```
 
-### Schulterpunkte für Kontrolle
+### Find shoulder points for the mean value table for control
 
 ```{r}
-#vorübergehenes Entfernen von Proteinmenge die unter Threshold liegt
-Schulter_Mittelwerte_Kontrolle = ifelse(Mittelwerte_Kontrolle > 2, 1, 0) # wenn größer als 2 dann wird es zu 1 sonst wird der Wert auf 0 gesetzt
+#Temporary removal of protein quantity that is below threshold
+Schulter_Mittelwerte_Kontrolle = ifelse(Mittelwerte_Kontrolle > 2, 1, 0) # if greater than 2 then it becomes 1 otherwise the value is set to 0
 
-# vorübergehendes Entfernen von Bereichen um Maxima > werden auf 0 gesetzt: im Umkreis um 3 
-# Schleife über alle Maxima
+# Temporary removal of areas around maxima --> are set to 0: within a radius of 3
 for (i in 1:nrow(Maxima_Mittelwerte_Kontrolle)) {
-  Protein = Maxima_Mittelwerte_Kontrolle$Zeile[i]      # Zeile (Protein)
-  Fraktion = Maxima_Mittelwerte_Kontrolle$Fraktion[i]  # Spalte (Fraktion)
+  Protein = Maxima_Mittelwerte_Kontrolle$Zeile[i]      # row (Protein)
+  Fraktion = Maxima_Mittelwerte_Kontrolle$Fraktion[i]  # column (Fraction)
   
-  # Bereichsgrenzen für die Spalten berechnen (Grenzen prüfen!)
+  # Calculate range limits for the columns (check limits!)
+  #max(1, fraction-3) ensures that the start index is at least 1 (not <1)
+  #min(ncol(...), fraction+3) ensures that the final index is at most the total number of columns (ncol(...))
   Fraktions_bereich = max(1, Fraktion - 3):min(ncol(Schulter_Mittelwerte_Kontrolle), Fraktion + 3)
   
-  # Nur in dieser Zeile (Protein) die ±3 Spalten auf 0 setzen
+  # Set the ±3 columns to 0 only in this rows 
   Schulter_Mittelwerte_Kontrolle[Protein, Fraktions_bereich] = 0
 }
-
+#Apply function for shoulder points
 Schulterpunkte_Kontrolle = find_shoulders(Schulter_Mittelwerte_Kontrolle, Proteinnamen)
 
 ```
 
-### Schulterpunkte für RNAse
+### Find shoulder points for the mean value table for RNAse
 
 ```{r}
-#vorübergehenes Entfernen von Proteinmenge die unter Threshold liegt
-Schulter_Mittelwerte_RNAse = ifelse(Mittelwerte_RNAse > 2, 1, 0) # wenn größer als 2 dann wird es zu 1 sonst wird der Wert auf 0 gesetzt
+#Temporary removal of protein quantity that is below threshold
+Schulter_Mittelwerte_RNAse = ifelse(Mittelwerte_RNAse > 2, 1, 0) # if greater than 2 then it becomes 1 otherwise the value is set to 0
 
-# vorübergehendes Entfernen von Bereichen um Maxima > werden auf 0 gesetzt: im Umkreis um 3 
-# Schleife über alle Maxima
+# Temporary removal of areas around maxima --> are set to 0: within a radius of 3
 for (i in 1:nrow(Maxima_Mittelwerte_RNAse)) {
-  Protein = Maxima_Mittelwerte_RNAse$Zeile[i]      # Zeile (Protein)
-  Fraktion = Maxima_Mittelwerte_RNAse$Fraktion[i]  # Spalte (Fraktion)
+  Protein = Maxima_Mittelwerte_RNAse$Zeile[i]      # row (Protein)
+  Fraktion = Maxima_Mittelwerte_RNAse$Fraktion[i]  # column (Fraktion)
   
-  # Bereichsgrenzen für die Spalten berechnen (Grenzen prüfen!)
+  #Calculate range limits for the columns (check limits!)
+  #max(1, fraction-3) ensures that the start index is at least 1 (not <1)
+  #min(ncol(...), fraction+3) ensures that the final index is at most the total number of columns (ncol(...))
   Fraktions_bereich = max(1, Fraktion - 3):min(ncol(Schulter_Mittelwerte_RNAse), Fraktion + 3)
   
-  # Nur in dieser Zeile (Protein) die ±3 Spalten auf 0 setzen
+  # Set the ±3 columns to 0 only in this rows
   Schulter_Mittelwerte_RNAse[Protein, Fraktions_bereich] = 0
 }
-
-
+#Apply function for shoulder points
 Schulterpunkte_RNAse = find_shoulders(Schulter_Mittelwerte_RNAse, Proteinnamen)
 ```
 
-# es gibt nicht viele Schulterpunkte bei 2,5 die frage ist nur ob wir die entfernen müssen
 
-## Zusammenführen der Werte
+## Merging values
 
 Ich würde das nochmal bisschen verändern aber so funktioniert es auf jeden Fall und wir haben Tabellen in denen jetzt alle Maxima & Schulterpunkte haben zum Weiterarbeiten
 
 ```{r}
-# Für Schulterpunkte Wert hinzufügen
+# Add values for shoulder points
 Schulterpunkte_Kontrolle$Fraktion_gerundet = round(Schulterpunkte_Kontrolle$Fraktion)
 Schulterpunkte_Kontrolle$Wert = mapply(function(zeile, fraktion) {
   Mittelwerte_Kontrolle[zeile, fraktion]
@@ -274,7 +282,7 @@ Schulterpunkte_RNAse$Wert = mapply(function(zeile, fraktion) {
 }, Schulterpunkte_RNAse$Zeile, Schulterpunkte_RNAse$Fraktion_gerundet)
 
 
-# Markieren und zusammenfügen Kontrolle
+# Merging maxima values and shoulder points for controls
 Maxima_Mittelwerte_Kontrolle$Typ = "Maxima"
 Schulterpunkte_Kontrolle$Typ = "Schulter"
 
@@ -284,7 +292,7 @@ Combined_Kontrolle = rbind(
 )
 Combined_Kontrolle = Combined_Kontrolle[order(Combined_Kontrolle$Zeile, Combined_Kontrolle$Fraktion), ]
 
-# Markieren und zusammenfügen RNAse
+# Merging maxima values and shoulder points for RNAse
 Maxima_Mittelwerte_RNAse$Typ = "Maxima"
 Schulterpunkte_RNAse$Typ = "Schulter"
 
@@ -295,13 +303,11 @@ Combined_RNAse = rbind(
 Combined_RNAse = Combined_RNAse[order(Combined_RNAse$Zeile, Combined_RNAse$Fraktion), ]
 ```
 
-# Vergleich von RNAse & Kontrolle + Kriterien
 
-### p-Werte für Amplitudendifferenz
+### P-values of the amplitude difference between control and RNAse maxima as the first criterion with which we later want to assign a shift category to the proteins
 
 ```{r}
-# P-Werte bestimmen für die verschiedenen Maxima
-# Spaltennamen dedr Subtabellen nue benennen, um darauf zugreifen zu können über Combined_Kontrolle und Combined_RNAse
+# Rename column names of sub-tables to be able to access them via Combined_Kontrolle and Combined_RNAse
 Ctrl1_frakt = Ctrl1_norm
 colnames(Ctrl1_frakt) = c(1:25)
 Ctrl2_frakt = Ctrl2_norm
@@ -316,26 +322,27 @@ colnames(RNAse2_frakt) = c(1:25)
 RNAse3_frakt = RNAse3_norm
 colnames(RNAse3_frakt) = c(1:25)
 
-# Listen bilden aus den Replikaten von Kontrolle und RNAse
+# form Lists from the replicates of control and RNAse
 ctrl_reps = list(Ctrl1_frakt, Ctrl2_frakt, Ctrl3_frakt)
 rnase_reps = list(RNAse1_frakt, RNAse2_frakt, RNAse3_frakt)
 
-# Datframe von Kontrolle und RNAse mit nur den Positionen der Peaks
+# Dataframe of control and RNAse with only the positions of the peaks
 peaks_ctrl = data.frame(Protein = Combined_Kontrolle$Protein, Fraktion = Combined_Kontrolle$Fraktion, Treatment = 'Kontrolle')
 peaks_rnase = data.frame(Protein = Combined_RNAse$Protein, Fraktion = Combined_RNAse$Fraktion, Treatment = 'RNase')
 
 
-# Gemeinsame Protein-Fraktion-Kombinationen von Kontrolle und RNAse bestimmen
+# determine same fraction combinations of control and RNAse for the maxima
 shared_peaks = merge(peaks_ctrl, peaks_rnase, by = c("Protein", "Fraktion"))
 
-# Dataframe für die Ergebnisse aufstellen
+### Determine P values for the various maxima
+# Set up dataframe for the results
 p_Werte = data.frame()
 
 for (i in 1:nrow(shared_peaks)) {
   protein  = shared_peaks$Protein[i]
   fraktion = as.character(shared_peaks$Fraktion[i])
   
-  # Kontrollwerte extrahieren: über Position in shared peaks
+  # Extract control values: via position in shared peaks
   ctrl_vals = sapply(ctrl_reps, function(df) {
     if (protein %in% rownames(df) && fraktion %in% colnames(df)) {
       return(df[protein, fraktion])
@@ -344,7 +351,7 @@ for (i in 1:nrow(shared_peaks)) {
     }
   })
 
-  # RNase-Werte extrahieren: über Position in shared peaks
+  # Extract RNAse values: via position in shared peaks
   rnase_vals = sapply(rnase_reps, function(df) {
     if (protein %in% rownames(df) && fraktion %in% colnames(df)) {
       return(df[protein, fraktion])
@@ -352,11 +359,11 @@ for (i in 1:nrow(shared_peaks)) {
       return(NA)
     }
   })
-   # NA Werte entfernen
+   # remove NA values
   ctrl_vals = na.omit(ctrl_vals)
   rnase_vals = na.omit(rnase_vals)
 
-  # Wenn nötig: Mini-Störung hinzufügen bei identischen Werten
+  # If necessary: Add mini fault with identical values, otherwise the variance = 0 and cannot be used for the t-test
   if (length(ctrl_vals) >= 2 && all(abs(ctrl_vals - ctrl_vals[1]) < 1e-10)) {
     ctrl_vals[2] <- ctrl_vals[2] + 1e-6
   }
@@ -364,14 +371,17 @@ for (i in 1:nrow(shared_peaks)) {
     rnase_vals[2] <- rnase_vals[2] + 1e-6
   }
 
-  # t-Test nur wenn beide Gruppen mindestens 2 Werte haben
-  # Annahme für den T-Test, dass Replikate normalverteilt sind, um den T-Test überhaupt durchführen zu können
-  # Varianztest mit F-Test, um zu gucken, ob Kontrolle und RNAse gleiche Varianz haben: wichtig für t-Test Durchführung
-
+  #t-test only if both groups have at least 2 values
+  # Assumption for the t-test that replicates are normally distributed in order to be able to perform the t-test at all
+  # Variance test with F-test to see whether control and RNAse have the same variance: important for t-test implementation
   if (length(ctrl_vals) >= 2 && length(rnase_vals) >= 2) {
-    ftest_p = tryCatch(var.test(ctrl_vals, rnase_vals)$p.value, error = function(e) NA) # nur auf den p.value zugreifen im F-Test
+    ftest_p = tryCatch(var.test(ctrl_vals, rnase_vals)$p.value, error = function(e) NA) 
+    #The p-value of the F-test (ftest_p) decides whether to assume equal or unequal variances in the next step in the t-test
+    #If F-test p-value >0.05 → variances not significantly different
+    #If F-test p-value ≤0.05 → variances not equal 
+    #t-test, only if variance equals
     t_p = tryCatch(
-      t.test(ctrl_vals, rnase_vals, var.equal = (ftest_p > 0.05))$p.value, # mögliche Fehler mit tryCatch abfangen
+      t.test(ctrl_vals, rnase_vals, var.equal = (ftest_p > 0.05))$p.value, # Catch possible errors with tryCatch
       error = function(e) NA
     )
   } 
@@ -379,41 +389,49 @@ for (i in 1:nrow(shared_peaks)) {
 }
 
 
-# FDR-Korrektur
+# FDR-Correction: adjust all p-values in your overall dataset to control the false discovery rate.
 p_Werte$adj_p = p.adjust(p_Werte$P_Value, method = "BH")
 
 ```
 
 ```{r}
 p_werte_005 = p_Werte$Protein[which(p_Werte$adj_p <= 0.05)]
-
 ```
 
-## Funktion mit allen relevanten paramtern erstellen, die für jedes Protein bestimmt werden
+## Create a function with criteria selected by us that are determined for each protein. These criteria will later predict which Shift_Category each protein will be assigned to.
+#The following criteria are examined:
 
--   maxima werte (amplitude) -\> threshold für relevantes maximum festlegen
--   differenz der amplituden -\> gain (rnase) oder loss (Kontrolle)?
--   proteinmenge (area under the curve) -
--   unterschied in position der maxima - Abstand
--   p werte dazu schreiben
-
+- Number of maximum values for RNAse and control respectively
+- Distances of the maxima between control and RNAse
+- Shift index: Sum of the distances between control and RNAse maxima
+- Amount of protein under the peak curves
+- Loss of amplitude between RNAse and Control
+- Gain of amplitude between RNAse and Control
+- Summed_loss = sum of the loss amplitude
+- Summed_gain = sum of the gain amplitude
+- P-values for amplitude intervals
 
 ```{r}
+#extract only the columns “Fraction” and “Value” and split this 2-column data based on the grouping variable Combined_Control$Protein.Result: a list in which each element corresponds to a protein ID.
 liste_maxima_Ctrl = split(Combined_Kontrolle[, c("Fraktion", "Wert")], Combined_Kontrolle$Protein)
 liste_maxima_RNAse = split(Combined_RNAse[, c("Fraktion", "Wert")], Combined_RNAse$Protein)
 
-library(pracma)  # Für trapz()
+#For area calculation with trapezoidal rule
+library(pracma)  
 
+#define the function
 hol_shifts <- function(protein, threshold_rel = 0.3) {
-  window <- 2  # Größe des Fraktionsfensters
+  window <- 2  # Size of the fraction window
 
-  # Maxima holen
+  # get the maximum values of the current protein
   ctrl_maxima <- liste_maxima_Ctrl[[protein]]
   rnase_maxima <- liste_maxima_RNAse[[protein]]
 
+  #If the protein is not present in one of the lists, the value is assigned the number zero
   if (is.null(ctrl_maxima)) ctrl_maxima <- data.frame(Fraktion = numeric(0), Wert = numeric(0))
   if (is.null(rnase_maxima)) rnase_maxima <- data.frame(Fraktion = numeric(0), Wert = numeric(0))
   
+  #if a value exists, the maximum of the values of this protein is calculated. Then all fractions whose value is at least over threshold are filtered. These are considered as “maxima”
   if (nrow(ctrl_maxima) > 0) {
     max_ctrl = max(ctrl_maxima$Wert)
     ctrl_maxima = ctrl_maxima[ctrl_maxima$Wert >= threshold_rel * max_ctrl, ]
@@ -424,10 +442,11 @@ hol_shifts <- function(protein, threshold_rel = 0.3) {
     rnase_maxima = rnase_maxima[rnase_maxima$Wert >= threshold_rel * max_rnase, ]
   }
 
+  #Counting the maxima found
   nb_ctrl_maxima <- nrow(ctrl_maxima)
   nb_rnase_maxima <- nrow(rnase_maxima)
 
-  # Abstände der Maxima
+  # Distances between the maxima
   abstände <- c()
   for (i in 1:nb_ctrl_maxima) {
     for (j in 1:nb_rnase_maxima) {
@@ -436,7 +455,7 @@ hol_shifts <- function(protein, threshold_rel = 0.3) {
     }
   }
 
-  # Funktion zur Flächenberechnung mit Trapezregel über Replikat-Dataframes
+  # Function for area calculation with trapezoidal rule to obtain protein quantity
   calc_area <- function(df_list, protein, center_frac, window) {
     sapply(df_list, function(df) {
       if (protein %in% rownames(df)) {
@@ -455,7 +474,7 @@ hol_shifts <- function(protein, threshold_rel = 0.3) {
     })
   }
 
-  # Amplitudenverlust + Fläche unter Kontroll-Peaks
+  # Amplitude loss and area under control peaks
   loss_list <- c()
   flaeche_kontrolle <- c()
   for (i in 1:nb_ctrl_maxima) {
@@ -471,7 +490,7 @@ hol_shifts <- function(protein, threshold_rel = 0.3) {
     flaeche_kontrolle <- c(flaeche_kontrolle, mean(na.omit(flächen_vals)))
   }
 
-  # Amplitudengewinn + Fläche unter RNase-Peaks
+  # Amplitude gain and area under RNAse peaks
   gain_list <- c()
   flaeche_rnase <- c()
   for (i in 1:nb_rnase_maxima) {
@@ -487,7 +506,7 @@ hol_shifts <- function(protein, threshold_rel = 0.3) {
     flaeche_rnase <- c(flaeche_rnase, mean(na.omit(flächen_vals)))
   }
 
-  # p-Werte für Peaks aus vorher berechnetem p_Werte
+  # p-values for peaks from previously calculated p_values
   p_values <- sapply(ctrl_maxima$Fraktion, function(f) {
     p_val <- p_Werte$adj_p[p_Werte$Protein == protein & p_Werte$Fraktion == f]
     if (length(p_val) == 0) NA else p_val[1]
@@ -513,8 +532,8 @@ zeile = '2A5A_HUMAN'
 
 hol_shifts(zeile)
 ```
-Zusammenfügen der Unterlisten zu 
 
+#Create a dataframe with all these criteria for each protein
 ```{r}
 proteine = unique(c(names(liste_maxima_Ctrl), names(liste_maxima_RNAse)))
 
@@ -538,7 +557,7 @@ ergebnisse = lapply(proteine, function(p) {
 })
 df_ergebnisse = do.call(rbind, ergebnisse)
 
-
+#Remove proteins
 df_ergebnisse = df_ergebnisse[df_ergebnisse$Protein != 'P210L_HUMAN',]
 df_ergebnisse = df_ergebnisse[df_ergebnisse$Protein != 'PKD1_HUMAN',]
 df_ergebnisse = df_ergebnisse[df_ergebnisse$Protein != 'TGM7_HUMAN',]
@@ -549,9 +568,13 @@ df_ergebnisse_test = df_ergebnisse
 ```
 
 
-# Kriteienfuktion
+### Criteria function
  
-## Funktion für entscheidung über Liste wo das Protein einsortiert wird
+## For each protein, we examined how many criteria it fulfilled and determined an individual shift score for each protein. Based on this score, the proteins can now be divided into the categories: "strong", "moderate" or "no"-shift. 
+
+- score >= 5: "starker" shift
+- score >= 4: "moderater" shift
+- score < 4: "kein" shift
 
 -   Kriterien die gegeben sein müssen:
 
@@ -579,6 +602,7 @@ wenn horizontale Differnez = 0 aber (veränderung der Anzahl an peaks):
 
 
 ```{r}
+#create a function for calculation of the score
 klassifiziere_protein_shift_streng_v2 <- function(row) {
   parse_numeric_vector <- function(x) {
     if (is.na(x) || is.null(x) || x == "") return(numeric(0))
@@ -593,11 +617,13 @@ klassifiziere_protein_shift_streng_v2 <- function(row) {
   score <- 0
   richtung <- NA
   
-  ### 1) Shift_idx (max 2 Punkte)
+  ### 1. category Shift_idx (max 2 points for score)
   shift_idx <- suppressWarnings(as.numeric(row[["Shift_idx"]]))
   if (!is.na(shift_idx)) {
     if (abs(shift_idx) >= 2) {
       score <- score + 2
+      # Shift_idx > 0 --> right
+      # Shift_idx < 0 --> left
       richtung <- ifelse(shift_idx > 0, "right", "left")
     } else if (abs(shift_idx) == 1) {
       score <- score + 1
@@ -605,7 +631,7 @@ klassifiziere_protein_shift_streng_v2 <- function(row) {
     }
   }
   
-  ### 2) Maxima Unterschiede (max 2 Punkte)
+  ### 2) Difference in number of maximum between RNAse and control (max 2 points for score)
   max_kontrolle <- suppressWarnings(as.numeric(row[["Anzahl_Kontroll_Maxima"]]))
   max_rnase <- suppressWarnings(as.numeric(row[["Anzahl_RNase_Maxima"]]))
   if (!is.na(max_kontrolle) && !is.na(max_rnase)) {
@@ -620,7 +646,7 @@ klassifiziere_protein_shift_streng_v2 <- function(row) {
     }
   }
 
-  ### 3) p-Werte (Signifikanz gibt PLUS Punkte)
+  ### 3) p-value (Significance gives plus points for the score)
   p_vals <- parse_numeric_vector(row[["p_Werte"]])
   p_vals_vorhanden <- length(p_vals) > 0 && !all(is.na(p_vals))
   signifikant <- p_vals_vorhanden && any(p_vals < 0.05, na.rm = TRUE)
@@ -628,10 +654,10 @@ klassifiziere_protein_shift_streng_v2 <- function(row) {
     score <- score + 2
   } else if (!p_vals_vorhanden) {
     score <- score + 1
-    if (is.na(richtung)) richtung <- "right" # default wenn keine Info
+    if (is.na(richtung)) richtung <- "right" 
   }
   
-  ### 4) Flächenbewertung (immer berücksichtigen)
+  ### 4)  Difference in peak areas between RNAse and control 
   flaeche_k <- parse_numeric_vector(row[["Fläche_Kontrolle"]])
   flaeche_r <- parse_numeric_vector(row[["Fläche_RNase"]])
   delta_flaeche <- sum(flaeche_r, na.rm = TRUE) - sum(flaeche_k, na.rm = TRUE)
@@ -643,11 +669,11 @@ klassifiziere_protein_shift_streng_v2 <- function(row) {
       score <- score + 1
       if (is.na(richtung)) richtung <- ifelse(delta_flaeche > 0, "right", "left")
     }
-    # Sonderfall: shift_idx == 0 aber große Flächenänderung
+    # special case: shift_idx == 0 but big difference in Area difference under paek   --> Score + 1
     if (!is.na(shift_idx) && shift_idx == 0 && abs(delta_flaeche) > 30) {
       score <- score + 1
     }
-    # Zentroidenvergleich
+    # Centroid comparison (center of peak areas) between RNAse and control
     zentroid_k <- get_centroid(flaeche_k)
     zentroid_r <- get_centroid(flaeche_r)
     if (!is.na(zentroid_k) && !is.na(zentroid_r)) {
@@ -659,7 +685,7 @@ klassifiziere_protein_shift_streng_v2 <- function(row) {
     }
   }
   
-  ### 5) Summierter Gewinn/Verlust (nur wenn signifikant)
+  ### 5) Compare summed loss and gain of RNase and control amplitudes, but only if p-value of amplitude intervals is significant
   if (signifikant) {
     sum_gewinn <- suppressWarnings(as.numeric(row[["Summierter_Gewinn"]]))
     sum_verlust <- suppressWarnings(as.numeric(row[["Summierter_Verlust"]]))
@@ -671,7 +697,7 @@ klassifiziere_protein_shift_streng_v2 <- function(row) {
     }
   }
   
-  ### 6) Amplitudenpositionen (nur wenn signifikant)
+  ### 6) Compare the position of the amplitudes, but only if the p-value of the amplitude is significant. If amplitude remains the same then no point for score
   if (signifikant) {
     verlust_vec <- parse_numeric_vector(row[["Verlust_Amplituden"]])
     gewinn_vec <- parse_numeric_vector(row[["Gewinn_Amplituden"]])
@@ -689,20 +715,21 @@ klassifiziere_protein_shift_streng_v2 <- function(row) {
   
   if (is.na(richtung)) richtung <- "unbekannt"
   
-  ### Kategorie definieren
+  ### define the scores
   if (score >= 5) {
-    kategorie <- paste0("starker_", richtung, "_shift")
+    kategorie <- paste0("strong_", richtung, "_shift")
   } else if (score >= 4) {
-    kategorie <- paste0("moderater_", richtung, "_shift")
+    kategorie <- paste0("moderate_", richtung, "_shift")
   } else {
-    kategorie <- "kein_shift"
+    kategorie <- "no_shift"
   }
   
   return(list(Score = score, Kategorie = kategorie))
 }
 
-
+# Apply and save the function across all proteins and their categories
 ergebnisse_liste <- apply(df_ergebnisse, 1, klassifiziere_protein_shift_streng_v2)
+#Add Shift_Score and Shift_Kategorie to df_ergebnisse
 df_ergebnisse$Shift_Score <- sapply(ergebnisse_liste, function(x) x$Score)
 df_ergebnisse$Shift_Kategorie <- sapply(ergebnisse_liste, function(x) x$Kategorie)
 
@@ -746,7 +773,7 @@ vergleich_bewertung <- function(df, auto_spalte = "Shift_Kategorie", manuell_spa
   
   return(liste)
 }
-ergebnis_vergleich <- vergleich_bewertung(df_ergebnisse_phys, "Shift_Kategorie", "Manuelle_Bewertung")
+ergebnis_vergleich <- vergleich_bewertung(df_ergebnisse, "Shift_Kategorie", "Manuelle_Bewertung")
 
 print(ergebnis_vergleich$Genauigkeit)
 print(ergebnis_vergleich$Fehlklassifikationen)
@@ -801,23 +828,23 @@ print(metriken)
 plot_confusion_matrix(manuelle_labels, auto_labels)
 
 ```
-
+# Visualization of the Protein distribution for our poster
 ```{r}
 zeile <- 'ACOT9_HUMAN'
 
-# Y-Achsen-Limits berechnen
+# Combine y-values for both treatments
 alle_werte <- c(Ctrl1_norm[zeile,], RNAse1_norm[zeile,])
 ylim_bereich <- range(alle_werte, na.rm = TRUE)
 
-# Mehr Platz oben schaffen (z.B. 15% mehr)
+# to get more place at the top (z.B. 15% more)
 ylim_bereich[2] <- ylim_bereich[2] * 1.15
 
-# Plot vorbereiten
+# first plot for control
 plot(1:25, Ctrl1_norm[zeile,], type = "n",
      xlab = "Fractions", ylab = "Intensity of Proteins", main = paste("Protein distribution:", zeile),
      ylim = ylim_bereich)
 
-# Flächen unter den Kurven
+# stain area under the curve
 polygon(c(1:25, 25:1),
         c(Ctrl1_norm[zeile,], rep(0, 25)),
         col = adjustcolor("purple", alpha.f = 0.3), border = NA)
@@ -829,21 +856,21 @@ polygon(c(1:25, 25:1),
 lines(1:25, RNAse1_norm[zeile,], col = "darkblue", lwd = 2)
 
 legend("topright", legend = c("Control", "RNAse"),
-       col = c("purple", "darkblue"), lwd = 2, cex = 0.6, inset = c(0, -0.05))  # kleiner und etwas weiter nach unten
+       col = c("purple", "darkblue"), lwd = 2, cex = 0.6, inset = c(0, -0.05))  
 
-# Index des aktuellen Proteins in den Tabellen finden
+# Find the index of the current protein in the tables
 idx_ctrl <- which(abs_Maxima_Mittelwerte_Kontrolle[, 1] == zeile)
 idx_rnase <- which(abs_Maxima_Mittelwerte_RNAse[, 1] == zeile)
 
-# Maxima für Kontrolle aus Tabelle holen
+# Get maxima for control from table
 max_fraktion_ctrl <- as.numeric(as.character(abs_Maxima_Mittelwerte_Kontrolle[idx_ctrl, 3]))
 max_wert_ctrl <- as.numeric(as.character(abs_Maxima_Mittelwerte_Kontrolle[idx_ctrl, 4]))
 
-# Maxima für RNAse aus Tabelle holen
+# Get maxima for RNAse from table
 max_fraktion_rnase <- as.numeric(as.character(abs_Maxima_Mittelwerte_RNAse[idx_rnase, 3]))
 max_wert_rnase <- as.numeric(as.character(abs_Maxima_Mittelwerte_RNAse[idx_rnase, 4]))
 
-# Vertikale Pfeile für die Maxima
+# Vertical arrows for the maxima
 arrows(x0 = max_fraktion_ctrl, y0 = 0,
        x1 = max_fraktion_ctrl, y1 = max_wert_ctrl,
        col = "purple", lwd = 1.5, length = 0.1)
@@ -852,14 +879,14 @@ arrows(x0 = max_fraktion_rnase, y0 = 0,
        x1 = max_fraktion_rnase, y1 = max_wert_rnase,
        col = "darkblue", lwd = 1.5, length = 0.1)
 
-# Labels an den Maxima
+# Labels on the Maxima
 text(x = max_fraktion_ctrl, y = max_wert_ctrl + 0.10 * max_wert_ctrl,
      labels = "Amplitude", col = "purple", cex = 0.8)
 
 text(x = max_fraktion_rnase, y = max_wert_rnase + 0.05 * max_wert_rnase,
      labels = "Amplitude", col = "darkblue", cex = 0.8)
 
-# Shift-Distance-Pfeil zwischen den Maxima (auf kleinstem Maxima-Niveau)
+# Shift distance arrow between the maxima 
 arrow_y <- min(max_wert_ctrl, max_wert_rnase)
 
 arrows(x0 = max_fraktion_ctrl, y0 = arrow_y,
@@ -872,27 +899,26 @@ text(x = mean(c(max_fraktion_ctrl, max_fraktion_rnase)),
      labels = "Shift Distance", col = "black", cex = 0.8)
 
 ```
-
+#Bar plot: show total number of proteins of all shift categories and classify into RBP and non-RBP
 ```{r}
 library(dplyr)
 library(ggplot2)
 
-# RBP-Status zuordnen
+# Assign RBP status
 df_ergebnisse_phys <- df_ergebnisse_phys %>%
-  mutate(RBP_Gruppe = ifelse(Shift_Kategorie == "kein_shift", "non-RBP", "RBP"))
+  mutate(RBP_Gruppe = ifelse(Shift_Kategorie == "no_shift", "non-RBP", "RBP"))
 
-# Summen berechnen pro RBP_Gruppe + Shift_Kategorie
+# Calculate sums of proteins per RBP_Group + Shift_Category
 df_summary <- df_ergebnisse_phys %>%
   group_by(RBP_Gruppe, Shift_Kategorie) %>%
   summarise(n = n(), .groups = "drop") %>%
   mutate(
-    # Kategorie-Label mit Anzahl für die Legende
+    # Category label with number for the legend
     Kategorie_mit_n = paste0(Shift_Kategorie, " (", n, ")")
   )
 
 ggplot(df_summary, aes(x = RBP_Gruppe, y = n, fill = Kategorie_mit_n)) +
   geom_col(position = "stack") +
-  # Kein geom_text() → keine Zahlen in den Balken
   scale_fill_manual(
     values = setNames(
       c("#A786C2", "#8684C2", "#7396AD", "#728083","#DBCEE6"), 
@@ -905,18 +931,19 @@ ggplot(df_summary, aes(x = RBP_Gruppe, y = n, fill = Kategorie_mit_n)) +
 
 ```
 
-
+#Scatter-plot of the absolute maxima positions for RNAse and control plotted against each other
 ```{r}
+#Generate two sub-tables for absolute maxima for control and RNAse
 library(dplyr)
 
 abs_Maxima_Mittelwerte_Kontrolle <- Maxima_Mittelwerte_Kontrolle %>%
-  group_by(Protein) %>%                   # Gruppieren nach Protein
-  slice_max(order_by = Wert, n = 1) %>% # Zeile mit maximalem Maxima behalten
+  group_by(Protein) %>%                   # Grouping by protein
+  slice_max(order_by = Wert, n = 1) %>% # Keep line with maximum maxima
   ungroup()
 
 abs_Maxima_Mittelwerte_RNAse <- Maxima_Mittelwerte_RNAse %>%
-  group_by(Protein) %>%                   # Gruppieren nach Protein
-  slice_max(order_by = Wert, n = 1) %>% # Zeile mit maximalem Maxima behalten
+  group_by(Protein) %>%                   # Grouping by protein
+  slice_max(order_by = Wert, n = 1) %>% # Keep line with maximum maxima
   ungroup()
 ```
 
@@ -928,40 +955,39 @@ merged <- merge(
   suffixes = c("_control", "_rnase")
 )
 
-# Berechnung der Anzahl der Punkte über, auf und unter der Linie y = x
+# Calculation of the number of points above, on and below the line y = x
 above_line <- sum(merged$Fraktion_control > merged$Fraktion_rnase)
 on_line <- sum(merged$Fraktion_control == merged$Fraktion_rnase)
 below_line <- sum(merged$Fraktion_control < merged$Fraktion_rnase)
 
-# Ausgabe der Werte in der Konsole
+# Output of the values in the console
 cat("Anzahl Proteine über der Linie:", above_line, "\n")
 cat("Anzahl Proteine auf der Linie:", on_line, "\n")
 cat("Anzahl Proteine unter der Linie:", below_line, "\n")
 
-# Plot nochmal, damit Text eingefügt wird
 plot(
   y = merged$Fraktion_control,
   x = merged$Fraktion_rnase,
   xlim = c(0, 25),
   ylim = c(0, 25),
-  ylab = "Peaks in the control gradient (Fraction)",
-  xlab = "Peaks in the RNase gradient (Fraction)",
+  ylab = "Peaks in the control gradient",
+  xlab = "Peaks in the RNase gradient",
   pch = 16, col = rgb(0,0,0,0.5),
-  main = "Maxima-Shift der Proteine"
+  main = "Distribution of the maximum values in the fractions"
 )
 abline(0, 1, col = "blue", lty = 2)
 
-# Text mit den Zahlen links unten hinzufügen
+# Add text with the numbers at the bottom left
 text(x = 19, y = 2,
      labels = paste0(
        "left_Shift: ", above_line, "\n",
-       "kein_Shift: ", on_line, "\n",
+       "no_Shift: ", on_line, "\n",
        "right_Shift: ", below_line),
      adj = 0, cex = 0.8, col = "black")
 
 ```
 
-#Data_Modelling
+#Distribution of the Shift Scores
 ```{r}
 hist(df_ergebnisse$Shift_Score,
      breaks = 30,
