@@ -12,114 +12,68 @@ knitr::opts_chunk$set(echo = TRUE)
 MS_Table_norm = read.table("Datensätze/MS_Table.norm.csv", header=TRUE, row.names=1, sep = ",")
 ```
 
-### Einlesen von Table_RBPs
+## General goal of data modelling:
+The general goal of the data modelling is on the one hand to evaluate how well the classification of RBPs oder NO_RBPs based on the shift score is. On the other hand the main goal is tto further analyze and characterize the identified RNA-dependent proteins by their biophysical characteristics which is done by performing linear and logistic regression analyses.
+
+# Loading the data from Rdeep and creating a table of RBP listed proteins
 ```{r}
-# 1. Datei komplett als Text einlesen
 raw <- readLines("Datensätze/Table_HS_RBP.txt")
-
-# 2. Ab Zeile 7 extrahieren (Header + Daten)
 raw_data <- raw[7:length(raw)]
-
-# 3. Entferne alle \" (Backslash-Anführungszeichen)
 clean_data <- gsub('\\"', '', raw_data)
-
-# 4. Schreibe die bereinigten Zeilen in eine temporäre Datei
 writeLines(clean_data, "cleaned_table.txt")
-
-# 5. Lese die bereinigte Datei als richtige Tabelle ein
 Table_HS_RBP = read.delim("cleaned_table.txt",
                     sep = "\t",
                     header = TRUE,
                     stringsAsFactors = FALSE,
                     check.names = FALSE)
-
 ```
 
-### Einlesen von Table_NO-RBPs
+# Loading the data from Rdeep and creating a table of proteins listed as NO_RBP
 ```{r}
-# 1. Datei komplett als Text einlesen
 raw <- readLines("Datensätze/Table_HS_Non_RBP.txt")
-
-# 2. Ab Zeile 7 extrahieren (Header + Daten)
 raw_data <- raw[7:length(raw)]
-
-# 3. Entferne alle \" (Backslash-Anführungszeichen)
 clean_data <- gsub('\\"', '', raw_data)
-
-# 4. Schreibe die bereinigten Zeilen in eine temporäre Datei
 writeLines(clean_data, "cleaned_table.txt")
-
-# 5. Lese die bereinigte Datei als richtige Tabelle ein
 Table_HS_NO_RBP = read.delim("cleaned_table.txt",
                     sep = "\t",
                     header = TRUE,
                     stringsAsFactors = FALSE,
                     check.names = FALSE)
-
-```
-
-
-```{r}
-# Vergleich wie viele in den beiden Tabellen sind -> brauchen wir eigentlich eh nicht mehr
-
-# gemeinsam = intersect(Table_HS_RBP$Entry_Name, rownames(MS_Table_norm))
-# gemeinsam # welche sind das 
-# length(gemeinsam) # wie viele sind gleich
-
-
-# Extra Tabelle mit nur denen die wir auch haben
-RBP_Table = Table_HS_RBP[Table_HS_RBP$Entry_Name %in% rownames(MS_Table_norm), ]
-
 ```
 
 ```{r}
-# Vergleich wie viele in den beiden Tabellen sind -> brauchen wir eigentlich eh nicht mehr
-
-# gemeinsam = intersect(Table_HS_NO_RBP$Entry_Name, rownames(MS_Table_norm))
-# gemeinsam # welche sind das 
-# length(gemeinsam) # wie viele sind gleich
-
-
-# Extra Tabelle mit nur denen die wir auch haben
-No_RBP_Table = Table_HS_NO_RBP[Table_HS_NO_RBP$Entry_Name %in% rownames(MS_Table_norm), ]
-
-```
-
-
-```{r}
-# 1. Alle Spaltennamen aus der RBP-Tabelle
+# Combining the tables "RBP_Table" and "No_RBP_Table" 
 rbp_cols <- colnames(Table_HS_RBP)
 
-# 2. Welche Spalten davon existieren in der NO_RBP-Tabelle?
+#selecting columns excisting in both tables
 existing_no_rbp_cols <- intersect(rbp_cols, colnames(Table_HS_NO_RBP))
 
-# 3. Erzeuge NO_RBP-Tabelle mit gleichen Spalten, fehlende füllen wir mit NA
+# NO_RBP_Table with the same columns
 No_RBP_Table_aligned <- Table_HS_NO_RBP[, existing_no_rbp_cols]
 
-# 4. Füge die fehlenden Spalten mit NA hinzu
+# Adding missing columns with NA
 missing_cols <- setdiff(rbp_cols, existing_no_rbp_cols)
 for (col in missing_cols) {
   No_RBP_Table_aligned[[col]] <- NA
 }
-
-# 5. Bringe die Spalten in dieselbe Reihenfolge wie in RBP-Tabelle
+# Same order of the columns in both tables
 No_RBP_Table_aligned <- No_RBP_Table_aligned[, rbp_cols]
 
-# 6. Füge eine Kategorie-Spalte hinzu
+# Categorizing the proteins based on their original table
 Table_HS_RBP$Kategorie <- "RBP"
 No_RBP_Table_aligned$Kategorie <- "NO_RBP"
 
-# 7. Gleiche Einträge wie in MS_Table_norm behalten
+# Keeping the same entries a sin Table_MS_norm
 RBP_Table <- Table_HS_RBP[Table_HS_RBP$Entry_Name %in% rownames(MS_Table_norm), ]
 No_RBP_Table <- No_RBP_Table_aligned[No_RBP_Table_aligned$Entry_Name %in% rownames(MS_Table_norm), ]
 
-# 8. Vereinige die beiden Tabellen
+# Combinig both tables for further analysis
 combined_table <- rbind(RBP_Table, No_RBP_Table)
 
 ```
 
-
 ```{r}
+# Loading data from Uniprot for more characteristics of the proteins
 library(readr)
 library(dplyr)
 
@@ -136,37 +90,72 @@ df_uniprot_counts <- df_uniprot %>%
   ) %>%
   select(Entry, `Entry Name`, Zinc_Count, Coil_Count, TM_Count)
 
+# Comining the new characterisitics
 combined_table <- combined_table %>%
   left_join(df_uniprot_counts, by = c("Entry_Name" = "Entry Name"))
 ```
 
-
-
-# Lineare Regression: Isoelektrischer Punkt und Masse als Prädiktoren für den Shift_Score
-
 ```{r}
-# physikalische Eigenschaften der Proteine, die übereinstimmen (RBP_Table), in df ergebnisse hinzufügen für die Regression
-phys_eigenschaften = combined_table[, c("Entry_Name", "Mass_kDa", "Length_AA", "pI", "Listing_Count","Zinc_Count", "Coil_Count", "RBP2GO_Score", "TM_Count")]
+# adding the biophysical traits of the proteins in df_ergebnisse for the regression analysis
+phys_traits = combined_table[, c("Entry_Name", "Mass_kDa", "Length_AA", "pI", "Listing_Count","Zinc_Count", "Coil_Count", "RBP2GO_Score", "TM_Count")]
 
 
-df_ergebnisse_phys = merge(df_ergebnisse, phys_eigenschaften,
+df_ergebnisse_phys = merge(df_ergebnisse, phys_traits,
                    by.x = "Protein", 
                    by.y = "Entry_Name", all = FALSE)
 
 df_ergebnisse_phys$RBP_Status = ifelse(df_ergebnisse_phys$Listing_Count >= 5, "RBP", "NO_RBP")
 
 #Einteilung der Proteine ein RBP/ kein RBP auf Basis des SHift_Scores
-df_ergebnisse_phys$RBP_nach_Score <- ifelse(df_ergebnisse_phys$Shift_Kategorie == "kein_shift", "NO_RBP", "RBP")
+df_ergebnisse_phys$RBP_nach_Score <- ifelse(df_ergebnisse_phys$Shift_Kategorie == "no_shift", "NO_RBP", "RBP")
 df_ergebnisse_phys$RBP_nach_Score <- factor(df_ergebnisse_phys$RBP_nach_Score, levels = c("NO_RBP", "RBP"))
 ```
 
+
+# Evaluating the RBP classification based on the shift category and shift score by comparing it to the data from Rdeep
 ```{r}
-# Regression mit den physikalischen Eigenschaften bezogen auf den von uns bestimmten shift_score
+# Vergleich Kategorisierung nach Shift_Score vs. nach Datenbank
+conf_matrix = table(df_ergebnisse_phys$RBP_Status, df_ergebnisse_phys$RBP_nach_Score)
+colnames(conf_matrix) <- c("Vorhergesagt_NO_RBP", "Vorhergesagt_RBP")
+rownames(conf_matrix) <- c("Tatsächlich_NO_RBP", "Tatsächlich_RBP")
+conf_matrix
+
+TN <- 4578
+FP <- 800
+FN <- 985
+TP <- 697
+
+# Funktion zur Berechnung der Klassifikationsmetriken
+calc_metrics <- function(TP, TN, FP, FN) {
+  Gesamttrefferquote <- (TP + TN) / (TP + TN + FP + FN)
+  PPW <- TP / (TP + FP)
+  Sensitivität <- TP / (TP + FN)  # Sensitivität
+  Spezifität <- TN / (TN + FP)
+  f1_score <- 2 * (PPW * Sensitivität) / (PPW + Sensitivität)
+  
+  # Ergebnisse als Dataframe
+  metrics_df <- data.frame(
+    Metric = c("Gesamttrefferquote", "PPW", "Sensitivität", "Spezifität", "F1-Score"),
+    Value = c(Gesamttrefferquote, PPW, Sensitivität, Spezifität, f1_score)
+  )
+  return(metrics_df)
+}
+
+Testwerte <- calc_metrics(TP, TN, FP, FN)
+print(Testwerte)
+```
+
+# Linear regression analysis: Isoelectric point and mass as predictors for the shift_score
+Several linear regression analyses were performed to find correlations between different biophysical characteristics of the proteins and the Shift score. Many of those analyses are not shown anymore because they all did not identify significant predictors for the shift score. 
+One linear regression analysis is performed with the isoelectric point and mass of the proteins as predictors for their Shift_Score. The goal of this regression analysis is to find out whether those two biophysical traits have a significant impact on the Shift_Score and therefore on the categorization of the proteins as RBP or NO_RBP.
+```{r}
 model_linear = lm(Shift_Score ~ pI + Mass_kDa, data = df_ergebnisse_phys)
 summary(model_linear)
 ```
+
+Both, the isoelectric point as well as the mass have a significant correlation with the Shift_Score because the p-value for both coefficients is significant. The correlation between those two traits and the Shift_Score is visualized below.
+
 ```{r}
-# Visualisierung der linearen Regressionsergebnissen: Shift Score durch pI und Masse
 df_plot <- df_ergebnisse_phys[complete.cases(df_ergebnisse_phys[, c("RBP_nach_Score", "Mass_kDa", "pI")]), ]
 df_plot <- df_plot[df_plot$Mass_kDa < 2000, ]
 df_plot$predicted_score <- predict(model_linear, newdata = df_plot, type = "response")
@@ -174,7 +163,7 @@ df_plot$predicted_score <- predict(model_linear, newdata = df_plot, type = "resp
 ggplot(df_plot, aes(x = Mass_kDa, y = pI, color = predicted_score)) +
   geom_point(size = 2, alpha = 0.7) +
   scale_color_gradient(low = "blue", high = "red") +
-  labs(title = "Vorhergesagter Score auf Basis von pI und Masse",
+  labs(title = "Shift_Score based on mass and pI",
        x = "Masse", y = "Isoelektrischer Punkt (pI)",
        color = "Score") +
   theme_minimal()
@@ -188,24 +177,7 @@ ggplot(df_ergebnisse_phys, aes(x = Mass_kDa, y = pI)) +
   theme_minimal()
 ```
 
-```{r}
-df_plot <- df_ergebnisse_phys[complete.cases(df_ergebnisse_phys[, c("Shift_Score", "pI", "Mass_kDa", "Shift_Kategorie")]), ]
 
-df_plot <- df_plot[df_plot$Mass_kDa < 2000, ] # Ausreißer entfenen
-
-# Modellvorhersage (Vorhersage des Shift Scores)
-df_plot$predicted_score <- predict(model_linear, newdata = df_plot)
-
-library(ggplot2)
-
-ggplot(df_plot, aes(x = Mass_kDa, y = pI, color = Shift_Kategorie)) +
-  geom_point(size = 2, alpha = 0.8) +
-  labs(title = "Shift-Kategorie nach Masse und pI",
-       x = "Masse (kDa)", y = "Isoelektrischer Punkt (pI)",
-       color = "Shift-Kategorie") +
-  theme_minimal()
-
-```
 ```{r}
 # pI und Masse isoliert betrachten als Prädiktor für den Shift Score
 # Zusammenhang zwischen Veränderung von pI bzw. Masse und dem shift score
@@ -215,33 +187,26 @@ install.packages("effects")
 library(effects)
 
 plot(allEffects(model_linear), main = "Teil-Effekte der Prädiktoren auf Shift Score")
-
 ```
+
+The R-squared value of the regression analysis is 0.03363 indicating that the isoelectric point and mass alone are not sufficient enough to predict the Shift_Score of the proteins. This result is visualized below. Both traits have a linear correlation with the shift score but there is a big deviation noticeable showing that these traits alone do not eexplain the Shift_Score. 
+
 ```{r}
-# Plots, die zeigen, dass es einen linearen Zusammenhang gibt zwischen jeweils pI/ Masse und Shift Score, das aber nicht die Variablen sind, die den Shift Score komplett erklären
 ggplot(df_plot, aes(x = pI, y = Shift_Score, color = Shift_Kategorie)) +
   geom_point(alpha = 0.6) +
   geom_smooth(method = "lm", se = FALSE, color = "black") +
-  labs(title = "Einfluss von pI auf Shift Score",
-       x = "Isoelektrischer Punkt (pI)",
-       y = "Shift Score") +
+  labs(title = "Influence of pI on shift score",
+       x = "Isoelekctric point (pI)",
+       y = "Shift score") +
   theme_minimal()
 ggplot(df_plot, aes(x = Mass_kDa, y = Shift_Score, color = Shift_Kategorie)) +
   geom_point(alpha = 0.6) +
   geom_smooth(method = "lm", se = FALSE, color = "black") +
-  labs(title = "Einfluss von Masse auf Shift Score",
-       x = "Masse (kDa)",
-       y = "Shift Score") +
+  labs(title = "Influence of mass on shift score",
+       x = "Mass (kDa)",
+       y = "Shift score") +
   theme_minimal()
 ```
-
-
-
-```{#r}
-model = lm(Shift_Score ~ Zinc_Count, data = df_ergebnisse_phys)
-summary(model)
-```
-
 
 ```{r}
 df_ergebnisse_phys$fitted_shift = predict(model_linear, newdata = df_ergebnisse_phys)
@@ -272,30 +237,32 @@ abline(a=0, b=1, col="red")
 
 ```
 
+# Data reduction and cluster analysis
+
+Performing a data reduction and cluster analysis based on the coefficients of the linear regression analysis, the goal is to find out the number of clusters and comparing those with the assignment of the proteins in different shift categories.
+
 ```{r}
-# Variablen auswählen und fehlende Werte entfernen
+# Choosing the variables for the clusteriing
 vars = c("Mass_kDa", "pI", "Shift_Score")
 df_clust = df_ergebnisse_phys[complete.cases(df_ergebnisse_phys[, vars]), ]
 
-# Clustering vorbereiten (Skalierung wichtig!)
+# Scaling to prepare for clustering
 scaled_data = scale(df_clust[, vars])
 
-# K-Means Clustering 
+# k-means clustering 
 set.seed(42)  # für Reproduzierbarkeit
-kmeans_result = kmeans(scaled_data, centers = 5)
+kmeans_result = kmeans(scaled_data, centers = 4)
 
-# Cluster-Zuweisung speichern
+# Saving cluster assignment
 df_clust$regression_cluster = factor(kmeans_result$cluster)
 
 ```
 
-
 ```{r}
-# Ergebnisse der Regression clustern
-# PCA durchführen
-pca = prcomp(scaled_data, scale. = FALSE)  
+# PCA to perform a data reduction based on the proteins with selected variables for the clustering 
+pca = prcomp(scaled_data, scale. = TRUE)  
 
-# Daten für Plot
+# Data for plotting
 plot_df = data.frame(PC1 = pca$x[,1],
                       PC2 = pca$x[,2],
                       Cluster = df_clust$regression_cluster)
@@ -307,22 +274,23 @@ library(ggplot2)
 ggplot(plot_df, aes(x = PC1, y = PC2, color = Cluster)) +
   geom_point(size = 2, alpha = 0.7) +
   theme_minimal() +
-  labs(title = "Cluster auf Basis von Regression + Eigenschaften",
+  labs(title = "Clusteriing based on regression analysis",
        x = paste0("PC1 (", round(summary(pca)$importance[2,1]*100,1), "%)"),
        y = paste0("PC2 (", round(summary(pca)$importance[2,2]*100,1), "%)")) +
   scale_color_brewer(palette = "Set2")
 
 
 ```
-
+This clustering contains an outlier that skews the clustering plot so it has to be removed. The proteins are clustere again and the silhouette plot shows which the best number of clusters in this analysis is.
 ```{r}
-outlier_index <- which.max(abs(plot_df$PC2))  # oder PC2, je nachdem
+# Detecting the outlier and removing it
+outlier_index <- which.max(abs(plot_df$PC2))  
 df_clust_no_outlier <- df_clust[-outlier_index, ]
 scaled_data_no_outlier <- scale(df_clust_no_outlier[, vars])
 set.seed(42)
 kmeans_result <- kmeans(scaled_data_no_outlier, centers = 4)
 
-# Clusterzuweisung speichern
+# New cluster assignment
 df_clust_no_outlier$regression_cluster <- factor(kmeans_result$cluster)
 pca_no_outlier <- prcomp(scaled_data_no_outlier, scale. = FALSE)
 
@@ -330,41 +298,41 @@ plot_df_clean <- data.frame(
   PC1 = pca_no_outlier$x[,1],
   PC2 = pca_no_outlier$x[,2],
   Cluster = df_clust_no_outlier$regression_cluster,
-  Protein = df_clust_no_outlier$Protein  # falls du Protein später brauchst
+  Protein = df_clust_no_outlier$Protein  
 )
 
-# Mergen der Shift-Kategorie über den Proteinnamen
+# Merging of shift category by protein name in the dataframe for plotting
 plot_df_clean <- merge(plot_df_clean,
                        df_ergebnisse_phys[, c("Protein", "Shift_Kategorie")],
                        by = "Protein", all.x = TRUE)
-
 
 library(ggplot2)
 
 ggplot(plot_df_clean, aes(x = PC1, y = PC2, color = Cluster)) +
   geom_point(size = 2, alpha = 0.8) +
   theme_minimal() +
-  labs(title = "Cluster ohne Ausreißer im PCA-Raum")
-# Falls noch nicht installiert:
-# install.packages("cluster")
+  labs(title = "Clustering by pI, mass and shift score ")
+
+# Silhouette plot for the clustering
 library(cluster)
-# Distanzmatrix berechnen auf den skalierten Daten ohne Ausreißer
+# distance matrix
 dists <- dist(scaled_data_no_outlier)
 
-# Silhouette berechnen mit K-Means-Zuweisungen
+# Silhouette with k-means assignments
 sil <- silhouette(as.numeric(df_clust_no_outlier$regression_cluster), dists)
-plot(sil, main = "Silhouette-Plot für K-Means-Clustering (k = 6)", col = 2:7, border = NA)
+plot(sil, main = "Silhouette-Plot for K-Means-Clustering (k = 4)", col = 2:7, border = NA)
 ```
+Combining the clustering information with the assignment of each protein to a shift category, the goal is to find out if there is a visible structure in the clustering based on the information of the shiift category. The result shows that clustering the proteins by pI, mass and Shift Score does not separate the proteins based on their shift category meaning that it was succesful to visualize that pI and mass explain some of variance of the shift score. Therefore the result is that especially left shift proteins have a different isoelectric point than proteins with no shift.
 ```{r}
-# welche Shift Kategorie ist pro Cluster am häufigsten
+# Most abundant shift categroy in each cluster
 library(dplyr)
-
+# absolute values
 summary_per_cluster <- df_clust_no_outlier %>%
   group_by(regression_cluster, Shift_Kategorie) %>%
   summarise(n = n(), .groups = "drop") %>%
   arrange(desc(n))
 
-#relativ:
+#relative values
 summary_per_cluster_rel <- summary_per_cluster %>%
   group_by(regression_cluster) %>%
   mutate(
@@ -372,94 +340,50 @@ summary_per_cluster_rel <- summary_per_cluster %>%
   ) %>%
   ungroup()
 
-# in welchem cluster kommen mehr RBP vor 
+# Proportion of RBP and NO_RBP in each cluster  
 summary_per_cluster_RBP <- df_clust_no_outlier %>%
   group_by(regression_cluster, RBP_nach_Score) %>%
   summarise(n = n(), .groups = "drop") %>%
   arrange(desc(n))
-summary_per_cluster_rel_RBP <- summary_per_cluster %>%
-  group_by(regression_cluster) %>%
+summary_per_cluster_rel_RBP <- summary_per_cluster_RBP %>%
+  group_by(regression_cluster, RBP_nach_Score) %>%
   mutate(
     Anteil = n / sum(n)
   ) %>%
   ungroup()
-# statistisch überprüfen, ob sich cluster in shift Kategorie unterscheiden
-# Kontingenztabelle erstellen
+```
+
+```{r}
+# Statistical test to see if the clusters distinguish in shift category
+# Contingency table
 table_shift_cluster <- table(df_clust_no_outlier$regression_cluster, df_clust_no_outlier$Shift_Kategorie)
 
-# Chi²-Test
+# Chi²-test for shift categories
 chisq.test(table_shift_cluster)
 # Verteilung der shift Kategorien unterscheidet sich signifikant zwischen den Clustern 
 
-# für RBP verteilt in den Clustern:
+# Chi²-test for RBP classification in clusters
 # ebenfalls signifikant
 table_shift_cluster_RBP <- table(df_clust_no_outlier$regression_cluster, df_clust_no_outlier$RBP_nach_Score)
 chisq.test(table_shift_cluster_RBP)
 ```
+Both, the shift categories and RBP classification distinguish in between the clusters. These results are visualized below by coloring the proteins by shift category.
 ```{r}
 ggplot(plot_df_clean, aes(x = PC1, y = PC2, color = Shift_Kategorie)) +
   geom_point(alpha = 0.7, size = 2) +
-  labs(title = "PCA: Proteine nach Shift-Kategorie eingefärbt") +
+  labs(title = "PCA: Clustering by pI, mass and shift score") +
   theme_minimal()
 
 ```
+The distribution of each shift category in each cluster is visualzed below.
 ```{r}
 ggplot(df_clust_no_outlier, aes(x = Shift_Kategorie, y = pI, fill = Shift_Kategorie)) +
   geom_boxplot() +
   facet_wrap(~ regression_cluster) +
   theme_minimal() +
-  labs(title = "pI-Werte pro Shift-Kategorie in jedem Cluster")
+  labs(title = "pI-values pro shift-category in each cluster")
 ```
-```{r}
-#???
-# Nur zwei Cluster vergleichen
-subtable <- df_clust_no_outlier %>%
-  filter(regression_cluster %in% c(2, 3)) %>%
-  count(regression_cluster, Shift_Kategorie) %>%
-  tidyr::pivot_wider(names_from = Shift_Kategorie, values_from = n, values_fill = 0)
-
-chisq.test(subtable[,-1])
-
-```
-```{r}
-# left shift Proteine klar abgegrent in Clusteranalyse
-# nur betrachten von left shift proteinen und eventuell weitere Analyse
-df_left_shift <- df_ergebnisse_phys %>% 
-  filter(Shift_Kategorie %in% c("starker_left_shift", "moderater_left_shift"))
-model_left_shift <- lm(Shift_Score ~ Zinc_Count, data = df_left_shift)
-summary(model_left_shift)
-
-```
-
-```{r}
-ggplot(plot_df_clean, aes(x = PC1, y = PC2, color = Shift_Kategorie)) +
-  stat_ellipse(aes(group = Shift_Kategorie), type = "norm", linetype = "dashed") +
-  geom_point(aes(color = Shift_Kategorie), size = 2, alpha = 0.6) +
-  theme_minimal(base_size = 13) +
-  labs(
-    title = "Shift-Kategorien im PCA-Raum",
-    subtitle = "Umrisse zeigen die Gruppierung nach Shift-Kategorie",
-    x = paste0("PC1 (", round(summary(pca_no_outlier)$importance[2,1]*100,1), "%)"),
-    y = paste0("PC2 (", round(summary(pca_no_outlier)$importance[2,2]*100,1), "%)")
-  ) +
-  scale_color_brewer(palette = "Dark2")
-
-```
-```{r}
-ggplot(plot_df_clean, aes(x = PC1, y = PC2)) +
-  stat_ellipse(aes(group = Shift_Kategorie, color = Shift_Kategorie), type = "norm", linetype = "dashed") +
-  geom_point(aes(color = Cluster), size = 2.5, alpha = 0.7) +
-  theme_minimal(base_size = 13) +
-  labs(
-    title = "Physikalisch getriebene Cluster mit biologischer Shift-Kategorie als Ellipse",
-    x = paste0("PC1 (", round(summary(pca_no_outlier)$importance[2,1]*100,1), "%)"),
-    y = paste0("PC2 (", round(summary(pca_no_outlier)$importance[2,2]*100,1), "%)")
-  ) +
-  scale_color_brewer(palette = "Set2")
-
-```
-
-
+To show the difference in the isoelectric point in each shift category, a violin plot is rendered.
 ```{r}
 library(ggplot2)
 
@@ -467,135 +391,42 @@ ggplot(df_clust, aes(x = Shift_Kategorie, y = pI)) +
   geom_violin(fill = "skyblue", alpha = 0.4) +
   geom_boxplot(width = 0.2, outlier.shape = NA) +
   theme_minimal() +
-  labs(title = "pI nach Shift-Kategorie", x = "Shift-Kategorie", y = "pI")
+  labs(title = "Isoelectric point in each shift category", x = "Shift category", y = "pI")
 
 ```
-
-```{r}
-library(ggplot2)
-
-ggplot(df_clust, aes(x = Shift_Kategorie, y = Mass_kDa)) +
-  geom_violin(fill = "skyblue", alpha = 0.4) +
-  geom_boxplot(width = 0.2, outlier.shape = NA) +
-  theme_minimal() +
-  labs(title = "Masse nach Shift-Kategorie", x = "Shift-Kategorie", y = "Masse")
-
-```
-
-```{r}
-library(ggplot2)
-library(dplyr)
-
-# PCA Ergebnis-Datenframe erstellen
-plot_df <- data.frame(
-  PC1 = pca$x[,1],
-  PC2 = pca$x[,2]
-)
-
-# Cluster- und Kategorie-Info aus df_clust hinzufügen
-plot_df <- plot_df %>%
-  mutate(
-    Cluster = df_clust$regression_cluster,
-    Shift_Kategorie = df_clust$Shift_Kategorie
-  )
-
-# PCA Plot mit Farbe = Shift_Kategorie und Form = Cluster
-ggplot(plot_df, aes(x = PC1, y = PC2, color = Shift_Kategorie, shape = as.factor(Cluster))) +
-  geom_point(size = 3, alpha = 0.8) +
-  theme_minimal() +
-  labs(title = "PCA: Shift_Kategorie (Farbe) & Regression Cluster (Form)",
-       x = paste0("PC1 (", round(summary(pca)$importance[2,1]*100, 1), "%)"),
-       y = paste0("PC2 (", round(summary(pca)$importance[2,2]*100, 1), "%)")) +
-  scale_color_brewer(palette = "Set1") +
-  guides(shape = guide_legend(title = "Cluster"))
-```
-
-```{r}
-# Tests für Zusammenhang zwischen pI + Zinc_Cont und Kategorisierung in RBP/ nicht RBP
-
-shapiro.test(df_ergebnisse_phys$pI[df_ergebnisse_phys$RBP_nach_Score == "RBP"]) # NV kann. angenommen werden
-
-# Wenn Verteilung normal (z.B. geprüft mit Shapiro-Wilk-Test):
-t.test(pI + Zinc_Count ~ RBP_nach_Score, data = df_ergebnisse_phys)
-```
-
+Below there is a density distribution of the isloelectric point for the two ctegories "RBP" and "NO_RBP". It is another visualization to show the difference in the isoelectric point for the different categories.
 ```{r}
 ggplot(df_ergebnisse_phys, aes(x = pI, fill = RBP_nach_Score)) +
   geom_density(alpha = 0.5) +
   theme_minimal() +
   labs(title = "pI-Verteilung bei RBP und Nicht-RBP", x = "pI", y = "Dichte")
 ```
-
+The violin plot for the log10(mass) in each shift category shows that there is not a significant difference visible. Without logarithmizing the mass the violin plots were not visible.
 ```{r}
-install.packages('pROC')
-library(pROC)
-
-roc_result <- roc(df_ergebnisse_phys$RBP_nach_Score, df_ergebnisse_phys$pI)
-plot(roc_result, col = "blue")
-auc(roc_result)
-
-```
-
-```{r}
-# Vergleich Kategorisierung nach Shift_Score vs. nach Datenbank
-conf_matrix = table(df_ergebnisse_phys$RBP_Status, df_ergebnisse_phys$RBP_nach_Score)
-colnames(conf_matrix) <- c("Vorhergesagt_NO_RBP", "Vorhergesagt_RBP")
-rownames(conf_matrix) <- c("Tatsächlich_NO_RBP", "Tatsächlich_RBP")
-conf_matrix
-
-TN <- 4578
-FP <- 800
-FN <- 985
-TP <- 697
-
-# Funktion zur Berechnung der Klassifikationsmetriken
-calc_metrics <- function(TP, TN, FP, FN) {
-  Gesamttrefferquote <- (TP + TN) / (TP + TN + FP + FN)
-  PPW <- TP / (TP + FP)
-  Sensitivität <- TP / (TP + FN)  # Sensitivität
-  Spezifität <- TN / (TN + FP)
-  f1_score <- 2 * (PPW * Sensitivität) / (PPW + Sensitivität)
-  
-  # Ergebnisse als Dataframe
-  metrics_df <- data.frame(
-    Metric = c("Gesamttrefferquote", "PPW", "Sensitivität", "Spezifität", "F1-Score"),
-    Value = c(Gesamttrefferquote, PPW, Sensitivität, Spezifität, f1_score)
+library(ggplot2)
+ggplot(df_clust, aes(x = Shift_Kategorie, y = log10(Mass_kDa))) +
+  geom_violin(fill = "skyblue", alpha = 0.4) +
+  geom_boxplot(width = 0.2, outlier.shape = NA) +
+  theme_minimal() +
+  labs(
+    title = "Log10(Mass) in each shift category",
+    x = "Shift-category",
+    y = expression(log[10]*"(Mass in kDa)")
   )
-  return(metrics_df)
-}
-
-Testwerte <- calc_metrics(TP, TN, FP, FN)
-
-# Ausgabe
-print(Testwerte)
-
-image(
-  t(apply(conf_matrix, 2, rev)),           # Matrix drehen für korrektes Layout
-  axes = FALSE, col = heat.colors(10),
-  main = "Konfusionsmatrix (Heatmap)"
-)
-axis(1, at = c(0, 1), labels = colnames(conf_matrix))
-axis(2, at = c(0, 1), labels = rev(rownames(conf_matrix)))
 
 ```
 
-# Logistische Regression mit biologischen Eigenschaften in Bezug auf RBP/ NO_RBP
-```{r}
-# Zielvariable als Faktor (0/1-artig)
-df_ergebnisse_phys$RBP_nach_Score = factor(df_ergebnisse_phys$RBP_nach_Score, levels = c("NO_RBP", "RBP"))
 
-# Logistische Regression für Masse, Länge, pI
+# Logistic regression analysis: Correlation between isoelectric point and Zinc motive with RBP classification
+Finding 570 proteins that have an information about a zinc finger motive and are also in the dataset that this analysis is based on led to the goal of searching for a correlation between a zinc finger motive and the RBP classification. A linear regression analysis with the zinc finger motive was not successful so that a logistic regression is performed with the target variable of RBP classification in RBP oder NO_RBP instead of the shift score in the linear regression analysis. Because the isoelectric point was already identified as influencial on both the shift score and the RBP classification, the pI is also included in the logistic regression analysis.
+```{r}
+df_ergebnisse_phys$RBP_nach_Score = factor(df_ergebnisse_phys$RBP_nach_Score, levels = c("NO_RBP", "RBP"))
 model_logit = glm(RBP_nach_Score ~ Zinc_Count + pI,
                    data = df_ergebnisse_phys,
                    family = "binomial")
 summary(model_logit)
-
-
 df_pred <- df_ergebnisse_phys[complete.cases(df_ergebnisse_phys[, c("Zinc_Count", "pI")]), ]
 df_pred$fitted_Status <- predict(model_logit, newdata = df_pred, type = "response")
-
-
-
 ```
 
 ```{r}
@@ -649,69 +480,6 @@ print(Testwerte)
 ```
 
 ```{r}
-# Wie gut stimmt das Modell mit der Klassifikation als RBP/ NO_RBP überein -> statistisch überprüfen
-# das gleiche nochmal aber für RBP_Status (aus Datenbank)
-
-complete_idx <- complete.cases(df_ergebnisse_phys[, c("Zinc_Count", "pI")]) # Nur die Reihen ohne NA Werte 
-df_complete <- df_ergebnisse_phys[complete_idx, ] # als Datenframe
-
-# Vorhersagen durch das logistische Modell
-df_complete$fitted_Status <- predict(model_logit, newdata = df_complete, type = "response")
-
-# bei welcher Wahrscheinlichkeit wird als RBP klassifiziert (benötigt für den Vergleich mit RBP_nach_Score bzw mit RBP_Status)
-df_complete$fitted_Status <- ifelse(df_complete$fitted_Status > 0.5, "RBP", "NO_RBP")
-df_complete$fitted_Status <- factor(df_complete$fitted_Status, levels = c("NO_RBP", "RBP"))
-
-conf_matrix <- table(
-  True = df_complete$RBP_Status,
-  Predicted = df_complete$fitted_Status
-)
-
-colnames(conf_matrix) <- c("Vom Modell vorhergesagt: NO_RBP", "Vom Modell vorhergesagt: RBP")
-rownames(conf_matrix) <- c("Klassifikation: NO_RBP", "Klassifikation: RBP")
-
-print(conf_matrix)
-
-TN <- 378 
-FP <- 47
-FN <- 142 
-TP <- 2
-
-# Funktion zur Berechnung der Klassifikationsmetriken
-calc_metrics <- function(TP, TN, FP, FN) {
-  Gesamttrefferquote <- (TP + TN) / (TP + TN + FP + FN)
-  PPW <- TP / (TP + FP)
-  Sensitivität <- TP / (TP + FN)  # Sensitivität
-  Spezifität <- TN / (TN + FP)
-  f1_score <- 2 * (PPW * Sensitivität) / (PPW + Sensitivität)
-  
-  # Ergebnisse als Dataframe
-  metrics_df <- data.frame(
-    Metric = c("Gesamttrefferquote", "PPW", "Sensitivität", "Spezifität", "F1-Score"),
-    Value = c(Gesamttrefferquote, PPW, Sensitivität, Spezifität, f1_score)
-  )
-  return(metrics_df)
-}
-
-Testwerte <- calc_metrics(TP, TN, FP, FN)
-print(Testwerte)
-
-```
-
-```{r}
-library(dplyr)
-
-df_ergebnisse_phys %>%
-  group_by(RBP_Status) %>%
-  summarise(
-    mittlerer_Zinc_Count = mean(Zinc_Count, na.rm = TRUE),
-    median_Zinc_Count = median(Zinc_Count, na.rm = TRUE),
-    n = n()
-  ) %>%
-  arrange(desc(mittlerer_Zinc_Count))
-
-```
-```{r}
 library(dplyr)
 
 df_ergebnisse_phys %>%
@@ -724,13 +492,22 @@ df_ergebnisse_phys %>%
   arrange(desc(mittlerer_pI))
 
 ```
+
 ```{r}
-df_ergebnisse_phys$Hat_Zinkfinger <- ifelse(!is.na(df_ergebnisse_phys$Zinc_Count) & df_ergebnisse_phys$Zinc_Count > 0, "ja", "nein")
-table(df_ergebnisse_phys$RBP_Status, df_ergebnisse_phys$Hat_Zinkfinger)
-prop.table(table(df_ergebnisse_phys$RBP_Status, df_ergebnisse_phys$Hat_Zinkfinger), 1) * 100
-chisq.test(table(df_ergebnisse_phys$RBP_Status, df_ergebnisse_phys$Hat_Zinkfinger))
-library(ggplot2)
+# Extracting the amount of RBPs with zinc motive
+amount_RBP <- sum(df_ergebnisse_phys$RBP_nach_Score == "RBP")
+amount_RBP_zinc <- sum(df_ergebnisse_phys$Zinc_Count > 0 & df_ergebnisse_phys$RBP_nach_Score == "RBP", na.rm = TRUE)
+
+# Extracting the amount of NO_RBPs with zinc motive
+amount_NO_RBP <- sum(df_ergebnisse_phys$RBP_nach_Score == "NO_RBP")
+amount_NO_RBP_zinc <- sum(df_ergebnisse_phys$Zinc_Count > 0 & df_ergebnisse_phys$RBP_nach_Score == "NO_RBP", na.rm = TRUE)
+
+# Percentage of both
+prop_RBP_zinc <- amount_RBP_zinc / amount_RBP * 100
+prop_NO_RBP_zinc <- amount_NO_RBP_zinc / amount_NO_RBP * 100
+table(prop_RBP_zinc,prop_NO_RBP_zinc)
 ```
+
 
 ```{r}
 t.test(Zinc_Count ~ RBP_nach_Score, data = df_ergebnisse_phys)
@@ -843,38 +620,5 @@ ggplot(df_summary, aes(x = RBP_Gruppe, y = n, fill = Kategorie_mit_n)) +
 
 ```
 
-```{r}
-# Proteine, die nicht direkt an die RNA binden
-# Filtere auf Proteine mit Listing_Count > 6
-rbp_kandidaten <- df_ergebnisse_phys %>%
-  filter(Listing_Count > 1)
 
-# Shift_idx Statistiken
-mean_shift   <- mean(rbp_kandidaten$Shift_idx, na.rm = TRUE)
-sd_shift     <- sd(rbp_kandidaten$Shift_idx, na.rm = TRUE)
-median_shift <- median(rbp_kandidaten$Shift_idx, na.rm = TRUE)
-
-# Mass_kDa Statistiken
-mean_masse   <- mean(rbp_kandidaten$Mass_kDa, na.rm = TRUE)
-sd_masse     <- sd(rbp_kandidaten$Mass_kDa, na.rm = TRUE)
-median_masse <- median(rbp_kandidaten$Mass_kDa, na.rm = TRUE)
-
-# Ausgabe
-cat("Shift_idx:\n")
-cat("  Mittelwert:", mean_shift, " | Median:", median_shift, " | SD:", sd_shift, "\n\n")
-
-cat("Mass_kDa:\n")
-cat("  Mittelwert:", mean_masse, " | Median:", median_masse, " | SD:", sd_masse, "\n")
-
-rbp_kandidaten <- rbp_kandidaten %>%
-  mutate(Shift_per_kDa = Shift_idx / Mass_kDa)
-# Schwellenwerte
-cutoff_mass <- mean_masse
-cutoff_shift <- mean_shift + sd_shift
-
-# Potenziell indirekte RNA-abhängige Proteine
-indirekt_rna_abhaengig <- df_ergebnisse_phys %>%
-  filter(Mass_kDa < cutoff_mass,
-         Shift_idx > cutoff_shift)
-```
 
