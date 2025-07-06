@@ -563,16 +563,15 @@ library(rsvg)
 
 # Beispiel: exportiere initial_processing
 svg <- export_svg(initial_processing)
-rsvg_png(charToRaw(svg), "Postervisuals/initial_processing.png")
+rsvg_png(charToRaw(svg), "Postervisuals/initial_processing.png", width = 3000, height = 3000)
 
 # Normalization
 svg <- export_svg(normalization)
-rsvg_png(charToRaw(svg), "Postervisuals/normalization.png")
+rsvg_png(charToRaw(svg), "Postervisuals/normalization.png", width = 3000, height = 3000)
 
 # Smoothing & Scaling
 svg <- export_svg(smoothing_scaling)
-rsvg_png(charToRaw(svg), "Postervisuals/smoothing_scaling.png")
-
+rsvg_png(charToRaw(svg), "Postervisuals/smoothing_scaling.png", width = 3000, height = 3000)
 ```
 
 ```{r}
