@@ -331,6 +331,7 @@ summary_per_cluster_rel_RBP <- summary_per_cluster_RBP %>%
 # Statistical test to see if the clusters distinguish in shift category
 # Contingency table
 table_shift_cluster <- table(df_clust_no_outlier$regression_cluster, df_clust_no_outlier$Shift_Kategorie)
+fisher.test(table_shift_cluster_RBP)
 
 # Chi²-test for shift categories
 chisq.test(table_shift_cluster)
@@ -536,5 +537,27 @@ ggplot(df_summary, aes(x = RBP_Gruppe, y = n, fill = Kategorie_mit_n)) +
 
 ```
 
+```{r}
+library(DiagrammeR)
+library(rsvg)
+library(DiagrammeRsvg)
+
+graph = grViz("
+digraph flowchart {
+  graph [layout = dot, rankdir = TB]
+
+  # Knoten definieren
+  pi [label = 'pI', shape = box, style = filled, fillcolor = '#A786C2']
+  Zinc_finger [label = 'Zinc_finger', shape = box, style = filled, fillcolor = '#8684C2']
+  RBP_classification [label = 'RBP_classification', shape = box, style = filled, fillcolor = '#617297']
+
+  # Pfeile
+  pi -> RBP_classification
+  Zinc_finger -> RBP_classification
+}
+")
+
+rsvg_png(charToRaw(export_svg(graph)), "flussdiagramm_shift_score.png", width = 1000, height = 800)
+```
 
 
