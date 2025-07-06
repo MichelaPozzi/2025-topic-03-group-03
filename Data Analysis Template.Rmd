@@ -1518,7 +1518,7 @@ text(x = 19, y = 2,
 
 ## General goal of data modelling:
 
-The general goal of the data modelling is on the one hand to evaluate how well the classification of RBPs oder NO_RBPs based on the shift score is. On the other hand the main goal is tto further analyze and characterize the identified RNA-dependent proteins by their biophysical characteristics which is done by performing linear and logistic regression analyses.
+The general goal of the data modelling is on the one hand to evaluate how well the classification of RBPs oder non-RBPs based on the shift score is. On the other hand the main goal is to further analyze and characterize the identified RNA-dependent proteins by their biophysical characteristics which is done by performing linear and logistic regression analyses.
 
 # Loading the data from R-DeeP and creating a table of RBP listed proteins
 
@@ -1603,7 +1603,7 @@ combined_table <- combined_table %>%
 ```
 
 ```{r}
-# adding the biophysical traits of the proteins in df_ergebnisse for the regression analysis
+# adding the biophysical characteristics of the proteins in df_ergebnisse for the regression analysis
 phys_traits = combined_table[, c("Entry_Name", "Mass_kDa", "Length_AA", "pI", "Listing_Count","Zinc_Count", "Coil_Count", "RBP2GO_Score", "TM_Count")]
 
 
@@ -1613,7 +1613,7 @@ df_ergebnisse_phys = merge(df_ergebnisse, phys_traits,
 
 df_ergebnisse_phys$RBP_Status = ifelse(df_ergebnisse_phys$Listing_Count >= 5, "RBP", "NO_RBP")
 
-#Einteilung der Proteine ein RBP/ kein RBP auf Basis des SHift_Scores
+# Classification of the proteins as RBP/ non-RBP based on their shift scores
 df_ergebnisse_phys$RBP_nach_Score <- ifelse(df_ergebnisse_phys$Shift_Category == "no_shift", "NO_RBP", "RBP")
 df_ergebnisse_phys$RBP_nach_Score <- factor(df_ergebnisse_phys$RBP_nach_Score, levels = c("NO_RBP", "RBP"))
 ```
@@ -1654,14 +1654,38 @@ print(testvalues)
 
 # Linear regression analysis: Isoelectric point and mass as predictors for the shift_score
 
-Several linear regression analyses were performed to find correlations between different biophysical characteristics of the proteins and the Shift score. Many of those analyses are not shown anymore because they all did not identify significant predictors for the shift score. One linear regression analysis is performed with the isoelectric point and mass of the proteins as predictors for their Shift_Score. The goal of this regression analysis is to find out whether those two biophysical traits have a significant impact on the Shift_Score and therefore on the categorization of the proteins as RBP or NO_RBP.
+Several linear regression analyses were performed to find correlations between different biophysical characteristics of the proteins and the Shift score. Many of those analyses are not shown anymore because they all did not identify significant predictors for the shift score. One linear regression analysis is performed with the isoelectric point and mass of the proteins as predictors for their shift score. The goal of this regression analysis is to find out whether those two biophysical traits have a significant impact on the Shift_Score and therefore on the categorization of the proteins as RBP or NO_RBP.
+
+```{r}
+library(DiagrammeR)
+library(rsvg)
+library(DiagrammeRsvg)
+
+overview_linear = grViz("
+digraph flowchart {
+  graph [layout = dot, rankdir = TB]
+
+  # Defining knots
+  pi [label = 'pI', shape = box, style = filled, fillcolor = '#A786C2']
+  Mass_kDa [label = 'Mass', shape = box, style = filled, fillcolor = '#8684C2']
+  Shift_Score [label = 'Shift_Score', shape = box, style = filled, fillcolor = '#617297']
+
+  # arrows
+  pi -> Shift_Score
+  Mass_kDa -> Shift_Score
+}
+")
+overview_linear
+rsvg_png(charToRaw(export_svg(overview_linear)), "flussdiagramm_shift_score.png", width = 1000, height = 800)
+```
+
 
 ```{r}
 model_linear = lm(Shift_Score ~ pI + Mass_kDa, data = df_ergebnisse_phys)
 summary(model_linear)
 ```
 
-Both, the isoelectric point as well as the mass have a significant correlation with the Shift_Score because the p-value for both coefficients is significant. The correlation between those two traits and the Shift_Score is visualized below.
+Both, the isoelectric point as well as the mass have a significant correlation with the Shift_Score because the p-value for both coefficients is significant. The correlation between those two characteristics and the shift score is visualized below.
 
 ```{r}
 df_plot <- df_ergebnisse_phys[complete.cases(df_ergebnisse_phys[, c("RBP_nach_Score", "Mass_kDa", "pI")]), ]
@@ -1807,7 +1831,7 @@ sil <- silhouette(as.numeric(df_clust_no_outlier$regression_cluster), dists)
 plot(sil, main = "Silhouette-Plot for K-Means-Clustering (k = 4)", col = 2:7, border = NA)
 ```
 
-Combining the clustering information with the assignment of each protein to a shift category, the goal is to find out if there is a visible structure in the clustering based on the information of the shiift category. The result shows that clustering the proteins by pI, mass and Shift Score does not separate the proteins based on their shift category meaning that it was succesful to visualize that pI and mass explain some of variance of the shift score. Therefore the result is that especially left shift proteins have a different isoelectric point than proteins with no shift.
+Combining the clustering information with the assignment of each protein to a shift category, the goal is to find out if there is a visible structure in the clustering based on the information of the shiift category. The result shows that clustering the proteins by pI, mass and shift score does not separate the proteins based on their shift category meaning that it was succesful to visualize that pI and mass explain some of variance of the shift score. Therefore the result is that especially left shift proteins have a different isoelectric point than proteins with no shift.
 
 ```{r}
 # Most abundant shift categroy in each cluster
@@ -1841,17 +1865,9 @@ summary_per_cluster_rel_RBP <- summary_per_cluster_RBP %>%
 
 ```{r}
 # Statistical test to see if the clusters distinguish in shift category
-# Contingency table
-table_shift_cluster <- table(df_clust_no_outlier$regression_cluster, df_clust_no_outlier$Shift_Category)
-
+# Distribution of the shift categories differs significantly between the clusters
 # Chi²-test for shift categories
 chisq.test(table_shift_cluster)
-# Verteilung der shift Kategorien unterscheidet sich signifikant zwischen den Clustern 
-
-# Chi²-test for RBP classification in clusters
-# ebenfalls signifikant
-table_shift_cluster_RBP <- table(df_clust_no_outlier$regression_cluster, df_clust_no_outlier$RBP_nach_Score)
-chisq.test(table_shift_cluster_RBP)
 ```
 
 Both, the shift categories and RBP classification distinguish in between the clusters. These results are visualized below by coloring the proteins by shift category.
@@ -1900,17 +1916,17 @@ violinplot_pI
 ggsave("Postervisuals/violinplot_pI.png", plot = violinplot_pI, width = 8, height = 6, dpi = 300)
 ```
 
-Below there is a density distribution of the isloelectric point for the two ctegories "RBP" and "NO_RBP". It is another visualization to show the difference in the isoelectric point for the different categories.
+Below there is a density distribution of the isoelectric point for the two categories "RBP" and "NO_RBP". It is another visualization to show the difference in the isoelectric point for the different categories.
 
 ```{r}
 ggplot(df_ergebnisse_phys, aes(x = pI, fill = RBP_nach_Score)) +
   geom_density(alpha = 0.5) +
   theme_minimal() +
-  labs(title = "pI-Verteilung bei RBP und Nicht-RBP", x = "pI", y = "Dichte")
+  labs(title = "pI-distribution for RBP and non-RBP", x = "pI", y = "density")
 ```
 
 ```{r}
-# Identifying the actual value of the isoelectric point for RBP amnd NO_RBP
+# Identifying the actual value of the isoelectric point for RBP and NO_RBP
 # Visible difference between the mean isoelectric points of the classifications
 library(dplyr)
 
@@ -1941,7 +1957,30 @@ ggplot(df_clust, aes(x = Shift_Category, y = log10(Mass_kDa))) +
 
 # Logistic regression analysis: Correlation between isoelectric point and Zinc motive with RBP classification
 
-Finding 570 proteins that have an information about a zinc finger motive and are also in the dataset that this analysis is based on led to the goal of searching for a correlation between a zinc finger motive and the RBP classification. A linear regression analysis with the zinc finger motive was not successful so that a logistic regression is performed with the target variable of RBP classification in RBP oder NO_RBP instead of the shift score in the linear regression analysis. Because the isoelectric point was already identified as influencial on both the shift score and the RBP classification, the pI is also included in the logistic regression analysis.
+Finding 570 proteins that have an information about a zinc finger motive and are also in the dataset that this analysis is based on, led to the goal of searching for a correlation between a zinc finger motive and the RBP classification. A linear regression analysis with the zinc finger motive was not successful so that a logistic regression is performed with the target variable of RBP classification in RBP or NO_RBP instead of the shift score in the linear regression analysis. Because the isoelectric point was already identified as influencial on both the shift score and the RBP classification, the pI is also included in the logistic regression analysis.
+
+```{r}
+library(DiagrammeR)
+library(rsvg)
+library(DiagrammeRsvg)
+
+overview_logistic = grViz("
+digraph flowchart {
+  graph [layout = dot, rankdir = TB]
+
+  # Defining knots
+  pi [label = 'pI', shape = box, style = filled, fillcolor = '#A786C2']
+  Zinc_finger [label = 'Zinc_finger', shape = box, style = filled, fillcolor = '#8684C2']
+  RBP_classification [label = 'RBP_classification', shape = box, style = filled, fillcolor = '#617297']
+
+  # arrows
+  pi -> RBP_classification
+  Zinc_finger -> RBP_classification
+}
+")
+overview_logistic
+rsvg_png(charToRaw(export_svg(overview_logistic)), "flussdiagramm_shift_score.png", width = 1000, height = 800)
+```
 
 ```{r}
 df_ergebnisse_phys$RBP_nach_Score = factor(df_ergebnisse_phys$RBP_nach_Score, levels = c("NO_RBP", "RBP"))
@@ -1970,7 +2009,7 @@ ggplot(df_plot, aes(x = Zinc_Count, y = pI, color = predicted_prob)) +
 ```
 
 ```{r}
-# Visualizing pI and Zinc finger motives seperately 
+# Visualizing pI and zinc finger motives seperately 
 # Densitiy distribution of pI and zinc finger motives for each RBP score
 library(ggplot2)
 
@@ -2007,7 +2046,7 @@ table(prop_RBP_zinc,prop_NO_RBP_zinc)
 ```
 
 ```{r}
-# Visualization of the percentages of Zinc finger motives in RBPs and NO_RBPs 
+# Visualization of the percentages of zinc finger motives in RBPs and NO_RBPs 
 df_prop <- data.frame(
   group = c("RBP", "NO_RBP"),
   percentage_zinc = c(prop_RBP_zinc, prop_NO_RBP_zinc)
@@ -2022,7 +2061,6 @@ ggplot(df_prop, aes(x = group, y = percentage_zinc, fill = group)) +
        y = "Proteins with zinc finger motive (%)",
        x = "Classification") +
   theme_poster %+replace% theme(legend.position = "none")
-
 ```
 
 ```{r}
