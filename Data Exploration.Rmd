@@ -528,7 +528,7 @@ hol_shifts <- function(protein, threshold_rel = 0.3) {
   ))
 }
 
-zeile = '2A5A_HUMAN'
+zeile = 'ACOT9_HUMAN'
 
 hol_shifts(zeile)
 ```
@@ -846,14 +846,14 @@ plot(1:25, Ctrl1_norm[zeile,], type = "n",
 
 # stain area under the curve
 polygon(c(1:25, 25:1),
-        c(Ctrl1_norm[zeile,], rep(0, 25)),
+        c(Mittelwerte_Kontrolle[zeile,], rep(0, 25)),
         col = adjustcolor("purple", alpha.f = 0.3), border = NA)
-lines(1:25, Ctrl1_norm[zeile,], col = "purple", lwd = 2)
+lines(1:25, Mittelwerte_Kontrolle[zeile,], col = "purple", lwd = 2)
 
 polygon(c(1:25, 25:1),
-        c(RNAse1_norm[zeile,], rep(0, 25)),
+        c(Mittelwerte_RNAse[zeile,], rep(0, 25)),
         col = adjustcolor("darkblue", alpha.f = 0.3), border = NA)
-lines(1:25, RNAse1_norm[zeile,], col = "darkblue", lwd = 2)
+lines(1:25, Mittelwerte_RNAse[zeile,], col = "darkblue", lwd = 2)
 
 legend("topright", legend = c("Control", "RNAse"),
        col = c("purple", "darkblue"), lwd = 2, cex = 0.6, inset = c(0, -0.05))  
@@ -899,6 +899,80 @@ text(x = mean(c(max_fraktion_ctrl, max_fraktion_rnase)),
      labels = "Shift Distance", col = "black", cex = 0.8)
 
 ```
+
+#Diagramm in größer
+```{r}
+zeile <- 'ACOT9_HUMAN'
+
+# Combine y-values for both treatments
+alle_werte <- c(Ctrl1_norm[zeile,], RNAse1_norm[zeile,])
+ylim_bereich <- range(alle_werte, na.rm = TRUE)
+
+# to get more place at the top (e.g. 15% more)
+ylim_bereich[2] <- ylim_bereich[2] * 1.15
+
+# first plot for control
+plot(1:25, Ctrl1_norm[zeile,], type = "n",
+     xlab = "Fractions", ylab = "Intensity of Proteins", main = paste("Protein distribution:", zeile),
+     ylim = ylim_bereich, cex.lab=1.4, cex.main=1.6, cex.axis=1.2)
+
+# stain area under the curve
+polygon(c(1:25, 25:1),
+        c(Mittelwerte_Kontrolle[zeile,], rep(0, 25)),
+        col = adjustcolor("purple", alpha.f = 0.3), border = NA)
+lines(1:25, Mittelwerte_Kontrolle[zeile,], col = "purple", lwd = 2)
+
+polygon(c(1:25, 25:1),
+        c(Mittelwerte_RNAse[zeile,], rep(0, 25)),
+        col = adjustcolor("darkblue", alpha.f = 0.3), border = NA)
+lines(1:25, Mittelwerte_RNAse[zeile,], col = "darkblue", lwd = 2)
+
+legend("topright", legend = c("Control", "RNAse"),
+       col = c("purple", "darkblue"), lwd = 2, cex = 0.9, inset = c(0, 0.02), yjust = 0)  
+
+# Find the index of the current protein in the tables
+idx_ctrl <- which(abs_Maxima_Mittelwerte_Kontrolle[, 1] == zeile)
+idx_rnase <- which(abs_Maxima_Mittelwerte_RNAse[, 1] == zeile)
+
+# Get maxima for control from table
+max_fraktion_ctrl <- as.numeric(as.character(abs_Maxima_Mittelwerte_Kontrolle[idx_ctrl, 3]))
+max_wert_ctrl <- as.numeric(as.character(abs_Maxima_Mittelwerte_Kontrolle[idx_ctrl, 4]))
+
+# Get maxima for RNAse from table
+max_fraktion_rnase <- as.numeric(as.character(abs_Maxima_Mittelwerte_RNAse[idx_rnase, 3]))
+max_wert_rnase <- as.numeric(as.character(abs_Maxima_Mittelwerte_RNAse[idx_rnase, 4]))
+
+# Vertical arrows for the maxima
+arrows(x0 = max_fraktion_ctrl, y0 = 0,
+       x1 = max_fraktion_ctrl, y1 = max_wert_ctrl,
+       col = "purple", lwd = 1.5, length = 0.1)
+
+arrows(x0 = max_fraktion_rnase, y0 = 0,
+       x1 = max_fraktion_rnase, y1 = max_wert_rnase,
+       col = "darkblue", lwd = 1.5, length = 0.1)
+
+# Labels on the maxima
+text(x = max_fraktion_ctrl, y = max_wert_ctrl + 0.10 * max_wert_ctrl,
+     labels = "Amplitude", col = "purple", cex = 1.2)
+
+text(x = max_fraktion_rnase, y = max_wert_rnase + 0.05 * max_wert_rnase,
+     labels = "Amplitude", col = "darkblue", cex = 1.2)
+
+# Shift distance arrow between the maxima 
+arrow_y <- min(max_wert_ctrl, max_wert_rnase)
+
+arrows(x0 = max_fraktion_ctrl, y0 = arrow_y,
+       x1 = max_fraktion_rnase, y1 = arrow_y,
+       col = "black", lwd = 1.6, angle = 15, length = 0.1, code = 3)  # code=3 = both ends
+
+# Label for the shift
+text(x = mean(c(max_fraktion_ctrl, max_fraktion_rnase)),
+     y = arrow_y + 0.05 * arrow_y,
+     labels = "Shift Distance", col = "black", cex = 1.2)
+
+```
+
+
 #Bar plot: show total number of proteins of all shift categories and classify into RBP and non-RBP
 ```{r}
 library(dplyr)
@@ -906,30 +980,41 @@ library(ggplot2)
 
 # Assign RBP status
 df_ergebnisse_phys <- df_ergebnisse_phys %>%
-  mutate(RBP_Gruppe = ifelse(Shift_Kategorie == "no_shift", "non-RBP", "RBP"))
+  mutate(RBP_Gruppe = ifelse(Shift_Category == "no_shift", "non-RBP", "RBP"))
 
 # Calculate sums of proteins per RBP_Group + Shift_Category
 df_summary <- df_ergebnisse_phys %>%
-  group_by(RBP_Gruppe, Shift_Kategorie) %>%
+  group_by(RBP_Gruppe, Shift_Category) %>%
   summarise(n = n(), .groups = "drop") %>%
   mutate(
     # Category label with number for the legend
-    Kategorie_mit_n = paste0(Shift_Kategorie, " (", n, ")")
+    Kategorie_mit_n = paste0(Shift_Category, " (", n, ")")
   )
 
 ggplot(df_summary, aes(x = RBP_Gruppe, y = n, fill = Kategorie_mit_n)) +
   geom_col(position = "stack") +
   scale_fill_manual(
     values = setNames(
-      c("#A786C2", "#8684C2", "#7396AD", "#728083","#DBCEE6"), 
+      c("#A786C2", "#8684C2", "#7396AD", "#728083", "#DBCEE6"), 
       df_summary$Kategorie_mit_n
     )
   ) +
-  labs(title = "Total Amount of Proteins per Shift category",
-       x = "Protein Type", y = "Total Amount of Proteins", fill = "Shift-Kategorie (n)") +
-  theme_minimal(base_size = 13)
+  labs(
+    title = "Total Amount of Proteins per Shift category",
+    x = "Protein Type", y = "Total Amount of Proteins", fill = "Shift-Category"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 14),
+    legend.title = element_text(size = 14),
+    legend.text = element_text(size = 13)
+  )
 
 ```
+
+
 
 #Scatter-plot of the absolute maxima positions for RNAse and control plotted against each other
 ```{r}
