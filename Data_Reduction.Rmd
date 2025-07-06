@@ -17,9 +17,9 @@ MS_Table_norm = read.table("Datensätze/MS_Table.norm.csv", header=TRUE, row.nam
 
 ## Principal Component Analysis on Original Data
 
-### Reduces the dimensionality of the data by identifying the main axes of variation
+### Reduction of data-dimensionality by identifying the main axes of variability
 
-#### Authors: Mirjam Biollaz, Jette Klempt-Gießing, Alicia Weeber
+##### Authors: Mirjam Biollaz, Jette Klempt-Gießing, Alicia Weeber
 
 ```{r}
 # PCA with original values
@@ -39,7 +39,7 @@ plot(pca$x[,1], pca$x[,2],
 
 ## Separation of Normalized Data by Experimental Condition
 
-#### Authors: Hasset Gessese
+##### Authors: Hasset Gessese
 
 ```{r}
 # Number of fractions
@@ -64,9 +64,9 @@ MS_RNase <- MS_Table_norm[, rnase_idx]
 
 ## Installing mentioned libraries
 
-### The required packages for clustering analysis and visualization were acquired
+### The required packages for clustering analysis and visualization are acquired
 
-#### Authors: Hasset Gessese
+##### Authors: Hasset Gessese
 
 ```{r install_all_needed, eval=FALSE}
 install.packages(c("factoextra", "cluster", "pheatmap", "RColorBrewer"))
@@ -80,7 +80,7 @@ install.packages(c("factoextra", "cluster", "pheatmap", "RColorBrewer"))
 
 ### PCA-Based K-Means Clustering for Normalization Assessment
 
-#### Authors: Hasset Gessese
+##### Authors: Hasset Gessese
 
 This K-means clustering was used as a quality control check after
 normalization, in order to ensure that the data structure remained
@@ -212,7 +212,7 @@ write.csv(cluster_df, "Cluster_Assignment.csv", row.names = FALSE)
 
 ### PCA plot with potential biological conditions (no shift, moderate left shift, strong left shift, moderate right shift, strong right shift)
 
-#### Authors: Alicia Weeber
+##### Authors: Alicia Weeber
 
 ```{r}
 # Your PCA object

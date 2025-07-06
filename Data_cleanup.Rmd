@@ -561,7 +561,7 @@ library(DiagrammeR)
 library(DiagrammeRsvg)
 library(rsvg)
 
-# Beispiel: exportiere initial_processing
+# Example: export initial_processing
 svg <- export_svg(initial_processing)
 rsvg_png(charToRaw(svg), "Postervisuals/initial_processing.png", width = 3000, height = 3000)
 
