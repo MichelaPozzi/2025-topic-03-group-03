@@ -5,10 +5,12 @@ date: "2025-04-30"
 ---
 
 ```{r setup, include=FALSE}
+# Setup chunk: set default chunk options
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
+# Load data table
 MS_Table = read.table("Datensätze/RDeeP_HeLa_Interphase.csv", header=TRUE, row.names=1, sep = ";")
 ```
 
@@ -36,110 +38,110 @@ SW_Replikatsnamen_norm = c('SW_Ctrl1_norm','SW_Ctrl2_norm','SW_Ctrl3_norm','SW_R
 Treatmentnamen = c('Ctrl1_norm','Ctrl2_norm','Ctrl3_norm','RNAse1_norm','RNAse2_norm','RNAse3_norm')
 ```
 
-# Beschreibung der Daten
+# Description of the Data
 
-### Dimensionen der Tabelle:
+### Dimensions of the table:
 
 ```{r}
 dim(MS_Table)
 ```
 
-### Spaltennamen
+### colnames(MS_Table)
 
 ```{r}
 colnames(MS_Table)
 ```
 
-### Reihennamen
+### rownames(MS_Table)
 
 ```{r}
 rownames(MS_Table)
 ```
 
-### Anzahl an fehlenden Werte
+### Number of missing values
 
 ```{r}
-sum(is.na(MS_Table))
+sum(is.na(MS_Table))  # Total number of NAs
 
-sum(rowSums(MS_Table) == 0)
-which(rowSums(MS_Table) == 0) # muss entfernt werden
+sum(rowSums(MS_Table) == 0)  # Number of rows with only zeros
+which(rowSums(MS_Table) == 0)  # Index of those rows → must be removed
 
 ```
 
-### Überprüfen ob die Werte alle 'numeric' sind
+### Check if all values are numeric
 
 ```{r}
 sum(sapply(MS_Table, is.numeric))
-# da kommt 150 raus > heißt alle spalten sind numerisch
+# This returns 150 → means all columns are numeric
 ```
 
-### Entfernen von FHOD3_HUMAN
+### Remove FHOD3_HUMAN
 
 ```{r}
 MS_Table = MS_Table[setdiff(rownames(MS_Table), 'FHOD3_HUMAN'),]
 ```
 
-# Normierung
+# Normalization
 
 ```{r}
-# Erstellen von subtabellen
+# Create subtables
 for (i in 1:50) {
-  spalten_index = ((i-1) * 3 + 1):(i * 3) # pro loop 3 Spalten zusammen
+  spalten_index = ((i-1) * 3 + 1):(i * 3)  # Each loop processes 3 columns together
   teilmatrix = MS_Table[,spalten_index]
   
-  assign(Fraktionsnamen[i], teilmatrix) # wählt gleich den passenden Namen dazu aus
+  assign(Fraktionsnamen[i], teilmatrix)  # Automatically assigns the correct name
 }
 ```
 
 ```{r}
-# Mittelwerte von den Spalten jeweils als Vektor
+# Column means for each submatrix as vector
 for (i in 1:50) {
-  spalten_index = ((i-1) * 3 + 1):(i * 3) # pro loop 3 Spalten zusammen
+  spalten_index = ((i-1) * 3 + 1):(i * 3)  # Each loop processes 3 columns together
   teilmatrix = MS_Table[,spalten_index]
   
   Mittelwerte = colMeans(teilmatrix)
   
-  assign(paste0('mean_', Fraktionsnamen[i]), Mittelwerte) # wählt gleich den passenden Namen dazu aus
+  assign(paste0('mean_', Fraktionsnamen[i]), Mittelwerte)  # Automatically assigns correct name
 }
 ```
 
 ```{r}
-# Normierungsfaktor pro Fraktion
+# Normalization factor per fraction
 normf.fraktion = c()
 for (i in 1:50) {
     
-  # Differenzen von jeweils einzelnen Mittelwerten bilden
-  abstand_12 = abs(get(meantabellen[i])[1] - get(meantabellen[i])[2] )
-  abstand_13 = abs(get(meantabellen[i])[1] - get(meantabellen[i])[3] )
-  abstand_23 = abs(get(meantabellen[i])[2] - get(meantabellen[i])[3] )
+  # Calculate pairwise differences of the individual means
+  abstand_12 = abs(get(meantabellen[i])[1] - get(meantabellen[i])[2])
+  abstand_13 = abs(get(meantabellen[i])[1] - get(meantabellen[i])[3])
+  abstand_23 = abs(get(meantabellen[i])[2] - get(meantabellen[i])[3])
   
-  # kleinste Differenz bestimmen + Mittelwert aus den kleinsten Differenzen berechnen
+  # Determine the smallest difference and compute the mean of the closest pair
   if (abstand_12 <= abstand_13 && abstand_12 <= abstand_23) {
-    normf.fraktion[i] = (mean(c(get(meantabellen[i])[1], get(meantabellen[i])[2])))
+    normf.fraktion[i] = mean(c(get(meantabellen[i])[1], get(meantabellen[i])[2]))
   } else if (abstand_13 <= abstand_12 && abstand_13 <= abstand_23) {
-    normf.fraktion[i] = (mean(c(get(meantabellen[i])[1], get(meantabellen[i])[3])))
-  } else{
-    normf.fraktion[i] = (mean(c(get(meantabellen[i])[2], get(meantabellen[i])[3])))
+    normf.fraktion[i] = mean(c(get(meantabellen[i])[1], get(meantabellen[i])[3]))
+  } else {
+    normf.fraktion[i] = mean(c(get(meantabellen[i])[2], get(meantabellen[i])[3]))
   }
 }
- normf.fraktion
+normf.fraktion
 ```
 
 ```{r}
-# Normierungsfaktor für jedes Replikat 
-# normierungsfaktor pro Fraktion durch Mittelwert des Replikats teilen
+# Normalization factor for each replicate
+# Divide the normalization factor per fraction by each replicate’s mean
 normf.rep = c()
-for (i in 1:50) { # 
+for (i in 1:50) {
   for (j in 1:3) {
-  normf.rep = c(normf.rep, normf.fraktion[i] / get(meantabellen[i])[j])
+    normf.rep = c(normf.rep, normf.fraktion[i] / get(meantabellen[i])[j])
   }
 }
 normf.rep
 ```
 
 ```{r}
-# Normierung der Daten auf Mittelwert 
-# anwenden der Normierungsfaktoren der Replikate auf das zugehörige Replikat
+# Normalize the data to the mean
+# Apply replicate-specific normalization factors to each corresponding replicate
 MS_Table_norm_mittel = as.data.frame(matrix(NA, nrow = nrow(MS_Table), ncol = 150))
 for (i in 1:150) {
   MS_Table_norm_mittel[,i] = normf.rep[i] * MS_Table[,i]
@@ -151,11 +153,10 @@ MS_Table_norm_mittel
 ```
 
 ```{r}
-# Normierung der Daten auf 100 mit Sliding window
-# Subtabellen für einzelne Replikate
+# Normalize the data to 100 using a sliding window
+# Create subtables for individual replicates
 
 for (i in 1:6) {
-
   spalten_index = seq(from = i, to = 150, by = 6)
   teilmatrix = MS_Table_norm_mittel[, spalten_index]
   
@@ -164,37 +165,40 @@ for (i in 1:6) {
 ```
 
 ```{r}
-# Sliding window
+# Apply sliding window
 for (i in 1:6) {
   
-  teilmatrix = data.frame(get(Replikatsnamen[i])[1], (get(Replikatsnamen[i])[1:23] + get(Replikatsnamen[i])[2:24] + get(Replikatsnamen[i])[3:25]) / 3, get(Replikatsnamen[i])[25]) # 
+  teilmatrix = data.frame(
+    get(Replikatsnamen[i])[1], 
+    (get(Replikatsnamen[i])[1:23] + get(Replikatsnamen[i])[2:24] + get(Replikatsnamen[i])[3:25]) / 3, 
+    get(Replikatsnamen[i])[25]
+  )
   
-  
-  assign(SW_Replikatsnamen[i], teilmatrix) # wählt gleich den passenden Namen dazu aus
+  assign(SW_Replikatsnamen[i], teilmatrix)  # Automatically assigns the correct name
 }
 ```
 
 
 ```{r}
+# Normalize sliding window output to 100%
 for (i in 1:6) {
-  
   teilmatrix = (get(SW_Replikatsnamen[i])) * 100 / rowSums(get(SW_Replikatsnamen[i]))
-  teilmatrix[is.na(teilmatrix)] = 0 # falls es einzelen Fraktionen gibt die sum = 0 haben, und wird dadurch nicht teilen dürfen
+  teilmatrix[is.na(teilmatrix)] = 0  # Handles cases where a fraction's total is 0 → prevents division
   
-  assign(SW_Replikatsnamen_norm[i], teilmatrix) # wählt gleich den passenden Namen dazu aus
+  assign(SW_Replikatsnamen_norm[i], teilmatrix)  # Automatically assigns the correct name
 }
 ```
 
 ```{r}
-# Zusammenführen zu einer Tabelle
+# Merge into one final table
 
-matrizen <- list(SW_Ctrl1_norm,SW_Ctrl2_norm,SW_Ctrl3_norm,SW_RNAse1_norm,SW_RNAse2_norm,SW_RNAse3_norm)
+matrices <- list(SW_Ctrl1_norm, SW_Ctrl2_norm, SW_Ctrl3_norm, SW_RNAse1_norm, SW_RNAse2_norm, SW_RNAse3_norm)
 
 MS_Table_norm = c()
 
 for (i in 1:25) {
   for (j in 1:6) {
-    MS_Table_norm = as.data.frame(cbind(MS_Table_norm, matrizen[[j]][, i]))
+    MS_Table_norm = as.data.frame(cbind(MS_Table_norm, matrices[[j]][, i]))
   }
 }
 
@@ -202,19 +206,21 @@ colnames(MS_Table_norm) = colnames(MS_Table)
 rownames(MS_Table_norm) = rownames(MS_Table)
 
 MS_Table_norm
-
 ```
 
 
-## Visualisierung der Normierung
-
-## Setup von Farbpalette und Themen für Plots
+## Visualization of Normalization
+## Setup of Color Palette and Themes for Plots
 ```{r}
-# Hexcodes für unteschiedliche Farben:
+## Visualization of Normalization
 
- "#C7D5DE" # Balkenüberschirft
- "#DFE3EA" # Hintergrundfarbe
- "#617297" # Überschirftenboxen
+## Setup of Color Palette and Themes for Plots
+```{r}
+# Hex codes for different colors:
+
+ "#C7D5DE" # Bar title
+ "#DFE3EA" # Background color
+ "#617297" # Header boxes
 
 "#A786C2"; "#8684C2"; "#617297"; "#7396AD"; "#8CABB5"; "#728083"
 "#EDE6F2"; "#E7E6F2"; "#DFE2EA"; "#E2EAEE"; "#E7EEF0"; "#E2E5E6"
@@ -224,14 +230,14 @@ MS_Table_norm
 "#54366D"; "#35336D"; "#30394B"; "#364B5A"; "#415961"; "#394041"
 
 
-# Farbpalette zentral definieren
+# Define central color palette
 farben_status <- c("raw" = "#7E51A4", "normalized" = "#504DA4")
-farben_status_cap <- c("Raw" = "#7E51A4", "Normalized" = "#504DA4") # Für Großschreibung
+farben_status_cap <- c("Raw" = "#7E51A4", "Normalized" = "#504DA4") # For capitalized labels
 farben_treatment <- c("Ctrl" = "#8CABB5", "RNAse" = "#A786C2")
 farben_condition <- c("Control" = "#8CABB5", "RNase" = "#A786C2")
 
 
-# Einheitliches Theme für Poster
+# Uniform theme for posters
 theme_poster <- theme_minimal(base_size = 14) +
   theme(
     plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
@@ -239,16 +245,17 @@ theme_poster <- theme_minimal(base_size = 14) +
     legend.title = element_text(face = "bold"),
     legend.position = "right"
   )
-
 ```
+
+
 ```{r}
 library(ggplot2)
 library(dplyr)
 library(tidyr)
 library(stringr)
-library(patchwork) # für Side-by-side plots
+library(patchwork) # for side-by-side plots
 
-# Funktion: long data frame mit Protein, Sample, Intensity
+# Function: convert to long data frame with Protein, Sample, Intensity
 to_long_df <- function(df, status_label) {
   df %>%
     as.data.frame() %>%
@@ -272,15 +279,15 @@ combined <- combined %>%
 combined <- combined %>%
   mutate(LogIntensity = log10(Intensity + 1))
 
-# Nur Ctrl oder RNAse, hier Beispiel Ctrl
+# Only Ctrl or RNAse, here example Ctrl
 combined_ctrl <- combined %>% filter(Treatment == "Ctrl")
 
-# Heatmap vorbereiten
+# Prepare heatmap
 plot_heatmap <- function(data, title) {
   ggplot(data, aes(x = factor(Fraction_num), y = Protein, fill = LogIntensity)) +
     geom_tile() +
     scale_fill_viridis_c(option = "magma") +
-    labs(x = "Fraktion", y = "Protein", fill = "log10(Intensität+1)", title = title) +
+    labs(x = "Fraction", y = "Protein", fill = "log10(Intensity+1)", title = title) +
     theme_minimal() +
     theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())
 }
@@ -289,14 +296,15 @@ p1 <- plot_heatmap(filter(combined_ctrl, Status == "raw"), "Raw Intensities (Ctr
 p2 <- plot_heatmap(filter(combined_ctrl, Status == "normalized"), "Normalized Intensities (Ctrl)")
 
 p1 + p2  + plot_layout(ncol = 2)
-
 ```
+
+
 ```{r}
 library(dplyr)
 library(tidyr)
 library(ggplot2)
 
-# Beispiel: Mittelwerte pro Fraktion und Status berechnen
+# Example: calculate mean values per fraction and status
 prepare_summary <- function(df, status_label) {
   df %>%
     as.data.frame() %>%
@@ -314,28 +322,26 @@ norm_summary <- prepare_summary(MS_Table_norm, "normalized")
 
 combined_summary <- bind_rows(raw_summary, norm_summary)
 
-# Ribbon Plot für raw und normalized (Ctrl und RNAse)
+# Ribbon plot for raw and normalized (Ctrl and RNAse)
 ggplot(combined_summary, aes(x=Fraction, y=mean_intensity, fill=Status, color=Status)) +
   geom_ribbon(aes(ymin=0, ymax=mean_intensity), alpha=0.3) +
   geom_line(size=1) +
   facet_wrap(~Treatment) +
   scale_y_log10() +
-  labs(title="Proteinprofil über Fraktionen: raw vs. normalized",
-       x="Fraktion", y="Mittlere Intensität (log10)") +
+  labs(title="Protein profile across fractions: raw vs. normalized",
+       x="Fraction", y="Mean intensity (log10)") +
   scale_fill_manual(values = farben_status) +
   scale_color_manual(values = farben_status) +
   theme_minimal()
 
-
-
-
 ```
+
 ```{r}
 library(dplyr)
 library(tidyr)
 library(ggplot2)
 
-# Hilfsfunktion: berechne SD pro Protein und Fraktion über Replikate
+# Helper function: calculate SD per protein and fraction across replicates
 calc_protein_sd <- function(data, status) {
   df <- data
   df$Protein <- rownames(df)
@@ -343,97 +349,103 @@ calc_protein_sd <- function(data, status) {
   df_long <- df %>%
     pivot_longer(-Protein, names_to = "Sample", values_to = "Intensity") %>%
     mutate(
-      Fraktion = as.numeric(gsub("Fraction(\\d+)_.*", "\\1", Sample)),
+      Fraction = as.numeric(gsub("Fraction(\\d+)_.*", "\\1", Sample)),
       Treatment = ifelse(grepl("Ctrl", Sample), "Ctrl", "RNAse")
     )
 
-  # SD über Replikate pro Protein und Fraktion
+  # SD across replicates per protein and fraction
   df_sd <- df_long %>%
-    group_by(Protein, Fraktion, Treatment) %>%
+    group_by(Protein, Fraction, Treatment) %>%
     summarise(SD = sd(Intensity, na.rm = TRUE), .groups = "drop") %>%
     mutate(Status = status)
 
   return(df_sd)
 }
 
-# SD pro Protein pro Fraktion berechnen
+# Calculate SD per protein per fraction
 sd_raw <- calc_protein_sd(MS_Table, "Raw")
 sd_norm <- calc_protein_sd(MS_Table_norm, "Normalized")
 
 sd_combined <- bind_rows(sd_raw, sd_norm)
 
-# Durchschnittliche SD pro Fraktion & Behandlung (über Proteine gemittelt)
+# Average SD per fraction & treatment (averaged across proteins)
 sd_summary <- sd_combined %>%
-  group_by(Fraktion, Treatment, Status) %>%
+  group_by(Fraction, Treatment, Status) %>%
   summarise(mean_SD = mean(SD, na.rm = TRUE), .groups = "drop")
 
-ggplot(sd_summary, aes(x = Fraktion, y = mean_SD, color = Status)) +
+ggplot(sd_summary, aes(x = Fraction, y = mean_SD, color = Status)) +
   geom_line(size = 1) +
   facet_wrap(~Treatment) +
-  labs(title = "Durchschnittliche Protein-Varianz pro Fraktion",
-       x = "Fraktion", y = "mittlere SD über Replikate") +
+  labs(title = "Average protein variance per fraction",
+       x = "Fraction", y = "Mean SD across replicates") +
   theme_minimal(base_size = 12) +
   scale_color_manual(values = farben_status_cap)
-
-
 ```
-
-
 
 
 ```{r}
 library(ggplot2)
 library(dplyr)
 
-# Mittelwerte berechnen
+# Calculate column means (raw and normalized)
 frak_mittel_raw <- colMeans(MS_Table, na.rm = TRUE)
 frak_mittel_norm <- colMeans(MS_Table_norm_mittel, na.rm = TRUE)
 
-# Funktion zur Vorbereitung des Dataframes
+# Function to prepare a dataframe for boxplots
 prepare_boxplot_df <- function(mittelwerte_vector, norm_status) {
   df <- data.frame(Sample = names(mittelwerte_vector), Value = mittelwerte_vector)
+  # Extract fraction number from sample names
   df$Fraction <- sub("Fraction(\\d+)_.*", "\\1", df$Sample)
-  df$Fraction <- factor(df$Fraction, levels = as.character(1:25)) # korrekte Reihenfolge
+  # Set fraction order as factor (1 to 25)
+  df$Fraction <- factor(df$Fraction, levels = as.character(1:25))
+  # Derive condition (Control or RNase) from sample names
   df$Condition <- ifelse(grepl("Ctrl", df$Sample), "Control", "RNase")
   df$Normalization <- norm_status
   return(df)
 }
 
-# Beide Tabellen vorbereiten und kombinieren
-df_raw <- prepare_boxplot_df(frak_mittel_raw, "Vor")
-df_norm <- prepare_boxplot_df(frak_mittel_norm, "Nach")
+# Prepare dataframes for raw and normalized data and combine
+df_raw <- prepare_boxplot_df(frak_mittel_raw, "Before")
+df_norm <- prepare_boxplot_df(frak_mittel_norm, "After")
 df_all <- rbind(df_raw, df_norm)
 
-# Neue kombinierte Gruppe: Fraktion + Condition
+# New grouping combining fraction and condition (for x-axis labels)
 df_all$Group <- paste(df_all$Fraction, df_all$Condition, sep = "_")
 df_all$Group <- factor(df_all$Group, levels = unique(df_all$Group))
 
-# Plot: Vor und Nach als separate Farben innerhalb jeder Gruppe
+# Boxplot: 'Before' and 'After' normalization as colors side-by-side per group
 ggplot(df_all, aes(x = Group, y = Value, fill = Normalization)) +
   geom_boxplot(outlier.size = 0.5, position = position_dodge(width = 0.75)) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8),
         legend.position = "right") +
-  labs(title = "Boxplots vor und nach Normalisierung",
-       x = "Fraktion & Bedingung",
-       y = "Signalintensität",
+  labs(title = "Boxplots Before and After Normalization",
+       x = "Fraction & Condition",
+       y = "Signal Intensity",
        fill = "Status")
 
 
+# Second boxplot: Compare fraction & condition with facets for normalization status
 ggplot(df_all, aes(x = Fraction, y = Value, fill = Condition)) +
   geom_boxplot(outlier.size = 0.5) +
-  facet_wrap(~Normalization, ncol = 2) +  # nebeneinander
+  facet_wrap(~Normalization, ncol = 2) +  # display side by side
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 8)) +
   scale_fill_manual(values = farben_condition) +
-  labs(title = "Vergleich: Vor vs. Nach Normalisierung",
-       x = "Fraktion", y = "Intensität", fill = "Bedingung")
-
+  labs(title = "Comparison: Before vs. After Normalization",
+       x = "Fraction", y = "Intensity", fill = "Condition")
 ```
 
-# Fürs Poster und für Template - auf Englisch 
+# For poster and template: workflow diagram with DiagrammeR, export as PNG
 
 ```{r}
+# Required packages (install once, commented out)
+# install.packages("DiagrammeRsvg")
+# install.packages("rsvg")
+
+# For poster and template: workflow diagram with DiagrammeR, export as PNG
+
+# Required packages (install once, commented out)
 # install.packages("DiagrammeRsvg")
 # install.packages("rsvg")
 
@@ -441,7 +453,7 @@ library(DiagrammeR)
 library(DiagrammeRsvg)
 library(rsvg)
 
-# Erstelle das Diagramm
+# Create flowchart of the data cleaning process
 graph <- grViz("
 digraph cleaning_process {
   graph [rankdir = LR, fontsize = 10, splines = ortho]
@@ -476,15 +488,13 @@ digraph cleaning_process {
     G [label = '7. Scale to 100%\\nper Fraction/Replicate']
   }
 
-
   A -> B -> C -> D -> E -> F -> G
 }
 ")
 
-# Speichern als SVG und konvertieren zu PNG
+# Export diagram as SVG and convert to PNG
 svg <- export_svg(graph)
 rsvg_png(charToRaw(svg), file = "data_cleaning_workflow.png", width = 1200, height = 600)
-
 ```
 
 
@@ -558,124 +568,126 @@ print(Normalization_plot)
 
 ```
 
+# Reproducibility
 
-# Reproduzierbarkeit
+Explanation which correlation method we use:
+Pearson, not Spearman, because we have many zeros — so [Pearson]{.underline}
 
-Erklärung welche Korrelation wird uns abgeschaut haben:
-
-Pearson oder Spearmean = ohne Ränge weil wir ganz viele Nullen haben !! heißt [Pearson]{.underline}
-
-Vorgehen:
+Procedure:
 
 ```{r}
-# Vektor für Korrelationen zwischen Spalten 1 & 2
+# Vector for correlations between columns 1 & 2
 kor_Spalte1_Spalte2 = c()
 for (i in 1:50) {
-  spalten_index = ((i-1) * 3 + 1):(i * 3) # pro loop 3 Spalten zusammen
-  teilmatrix = MS_Table_norm[,spalten_index] # die Untertabellen für jede einzelne Fraktion
+  spalten_index = ((i-1) * 3 + 1):(i * 3)  # every loop: 3 columns grouped
+  teilmatrix = MS_Table_norm[,spalten_index]  # submatrix for each fraction
   
-  kor_a = cor(teilmatrix[,1], teilmatrix[,2], method = 'pearson') # Pearsonkorrelation von Spalte 1 & 2
-  kor_Spalte1_Spalte2 = c(kor_Spalte1_Spalte2,kor_a) # an Vektor anhängen
+  kor_a = cor(teilmatrix[,1], teilmatrix[,2], method = 'pearson')  # Pearson correlation between column 1 & 2
+  kor_Spalte1_Spalte2 = c(kor_Spalte1_Spalte2, kor_a)  # append to vector
 }
 
 kor_Spalte1_Spalte2
 ```
 
+
 ```{r}
-# Vektor für Korrelationen zwischen Spalten 2 & 3
+# Vector for correlations between columns 2 & 3
 kor_Spalte2_Spalte3 = c()
 for (i in 1:50) {
-  spalten_index = ((i-1) * 3 + 1):(i * 3) # pro loop 3 Spalten zusammen
-  teilmatrix = MS_Table_norm[,spalten_index] # die Untertabellen für jede einzelne Fraktion
+  spalten_index = ((i-1) * 3 + 1):(i * 3)  # group 3 columns per loop
+  teilmatrix = MS_Table_norm[,spalten_index]  # submatrix for each fraction
   
-  kor_b = cor(teilmatrix[,2], teilmatrix[,3], method = 'pearson') # Pearsonkorrelation von Spalte 2 & 3
-  kor_Spalte2_Spalte3 = c(kor_Spalte2_Spalte3,kor_b) # an Vektor anhängen
+  kor_b = cor(teilmatrix[,2], teilmatrix[,3], method = 'pearson')  # Pearson correlation between column 2 & 3
+  kor_Spalte2_Spalte3 = c(kor_Spalte2_Spalte3, kor_b)  # append to vector
 }
 
 kor_Spalte2_Spalte3
+
 ```
 
+
 ```{r}
-# Vektor für Korrelationen zwischen Spalten 1 & 3
+# Vector for correlations between columns 1 & 3
 kor_Spalte1_Spalte3 = c()
 for (i in 1:50) {
-  spalten_index = ((i-1) * 3 + 1):(i * 3) # pro loop 3 Spalten zusammen
-  teilmatrix = MS_Table_norm[,spalten_index] # die Untertabellen für jede einzelne Fraktion
+  spalten_index = ((i-1) * 3 + 1):(i * 3)  # group 3 columns per loop
+  teilmatrix = MS_Table_norm[,spalten_index]  # submatrix for each fraction
   
-  kor_c = cor(teilmatrix[,2], teilmatrix[,3], method = 'pearson') # Pearsonkorrelation von Spalte 1 & 3
-  kor_Spalte1_Spalte3 = c(kor_Spalte1_Spalte3,kor_c) # an Vektor anhängen
+  kor_c = cor(teilmatrix[,1], teilmatrix[,3], method = 'pearson')  # Pearson correlation between column 1 & 3
+  kor_Spalte1_Spalte3 = c(kor_Spalte1_Spalte3, kor_c)  # append to vector
 }
 
 kor_Spalte1_Spalte3
 ```
 
+
 ```{r}
 kor_tabelle = cbind(kor_Spalte1_Spalte2, kor_Spalte2_Spalte3, kor_Spalte1_Spalte3)
-rownames(kor_tabelle) = Fraktionsnamen
+rownames(kor_tabelle) = Fraktionsnamen  # assign fraction names as row names
 kor_tabelle
 ```
 
-## Visualisierung von Reproduzierbarkeit
+## Visualization of Reproducibility
 
-### Boxplot für die Tabelle
+### Boxplot for the Table
 ```{r}
 kor_long <- data.frame(
-  Fraktion = rep(Fraktionsnamen, 3),
-  Korrelation = c(kor_Spalte1_Spalte2, kor_Spalte2_Spalte3, kor_Spalte1_Spalte3),
-  Paar = rep(c("Replikate 1&2", "Replikate 2&3", "Replikate 1&3"), each = 50)
+  Fraction = rep(Fraktionsnamen, 3),
+  Correlation = c(kor_Spalte1_Spalte2, kor_Spalte2_Spalte3, kor_Spalte1_Spalte3),
+  Pair = rep(c("Replicates 1&2", "Replicates 2&3", "Replicates 1&3"), each = 50)
 )
 
-Boxplot_Korrelationswerte <- ggplot(kor_long, aes(x = Paar, y = Korrelation, fill = Paar)) +
+Boxplot_Correlations <- ggplot(kor_long, aes(x = Pair, y = Correlation, fill = Pair)) +
   geom_boxplot() +
   theme_minimal() +
-  labs(title = "Reproduzierbarkeit der Replikate (Pearson-Korrelation)",
-       x = "Paar von Replikaten",
-       y = "Korrelationskoeffizient") +
+  labs(title = "Reproducibility of Replicates (Pearson Correlation)",
+       x = "Replicate Pair",
+       y = "Correlation Coefficient") +
   theme(legend.position = "none")
 
-p_violin <- ggplot(kor_long, aes(x = Paar, y = Korrelation, fill = Paar)) +
+p_violin <- ggplot(kor_long, aes(x = Pair, y = Correlation, fill = Pair)) +
   geom_violin(trim = FALSE) +
   geom_boxplot(width = 0.1, fill = "white") +
   scale_fill_manual(values = c("#7E51A4", "#485571", "#504DA4")) +
   theme_minimal(base_size = 14) +
   labs(
-    title = "Reproduzierbarkeit der Replikate (Pearson-Korrelation)",
-    y = "Korrelationskoeffizient",
-    x = NULL  # X-Achsentitel entfernen, Labels aber behalten
+    title = "Reproducibility of Replicates (Pearson Correlation)",
+    y = "Correlation Coefficient",
+    x = NULL  # Remove X-axis title but keep labels
   ) +
   theme(
-    axis.title.y = element_text(margin = margin(r = 15)),  # Abstand Y-Achsentitel
-    axis.title.x = element_blank(),                        # kein X-Achsentitel
-    axis.ticks.x = element_blank(),                        # keine Ticks
-    axis.line.x = element_blank(),                         # keine Achsenlinie unten
+    axis.title.y = element_text(margin = margin(r = 15)),  # space on Y-axis title
+    axis.title.x = element_blank(),                         # no X-axis title
+    axis.ticks.x = element_blank(),                         # no ticks on X-axis
+    axis.line.x = element_blank(),                          # no bottom axis line
     legend.position = "none"
   )
 
 print(p_violin)
 
-ggsave(filename = "Postervisuals/Violinplot_Korrelationen.png", plot = p_violin, width = 8, height = 6)
+# Save plot as PNG
+ggsave(filename = "Postervisuals/Violinplot_Correlations.png", plot = p_violin, width = 8, height = 6)
 ```
 
 
-
-### Scatterplots für alle Korealationen einzelnd - kommt nicht ins Template
+### Scatterplots for all individual correlations — not part of the template
 ```{r}
 library(stringr)
 library(dplyr)
 library(ggplot2)
 library(tidyr)
 
-# 1. Daten laden
+# 1. Load data
 ms = MS_Table_norm
 
-# 2. Prüfen
-if (ncol(ms) == 0) stop("Die Tabelle hat keine Spalten. Bitte CSV prüfen.")
-cat("Geladene Spalten:\n")
+# 2. Check
+if (ncol(ms) == 0) stop("The table has no columns. Please check the CSV.")
+cat("Loaded columns:\n")
 print(colnames(ms))
 
-# 3. Spaltennamen parsen
+# 3. Parse column names
 info <- str_split_fixed(colnames(ms), "_", 3)
-if (ncol(info) < 3) stop("Spaltennamen sind nicht im erwarteten Format 'Fraction_Treatment_Replicate'.")
+if (ncol(info) < 3) stop("Column names are not in expected format 'Fraction_Treatment_Replicate'.")
 
 colnames(info) <- c("Fraction", "Treatment", "Replicate")
 df_info <- data.frame(ColName = colnames(ms),
@@ -684,16 +696,16 @@ df_info <- data.frame(ColName = colnames(ms),
                       Replicate = info[, "Replicate"],
                       stringsAsFactors = FALSE)
 
-# 4. Plotbereich vorbereiten
-par(mfrow = c(2, 2), mar = c(4, 4, 2, 1))  # 2x2 Plots pro Seite
+# 4. Setup plot layout
+par(mfrow = c(2, 2), mar = c(4, 4, 2, 1))  # 2x2 plots per page
 
-# 5. Für jede Gruppe aus Fraktion + Treatment
+# 5. For each group of Fraction + Treatment
 groups <- df_info %>% group_by(Fraction, Treatment) %>% group_split()
 
 for(group in groups) {
-  if(nrow(group) < 2) next  # Mind. 2 Replikate nötig für Vergleich
+  if(nrow(group) < 2) next  # Need at least 2 replicates for comparison
 
-  # Alle 2er-Kombinationen der Replikat-Spalten
+  # All pairwise combinations of replicate columns
   combis <- combn(group$ColName, 2, simplify = FALSE)
 
   for(pair in combis) {
@@ -715,45 +727,43 @@ for(group in groups) {
       legend("topleft", legend = paste("R =", round(r, 2)), bty = "n")
     } else {
       plot.new()
-      title(main = paste("Nicht genug Daten für", col1, "vs", col2))
+      title(main = paste("Not enough data for", col1, "vs", col2))
     }
   }
 }
 ```
 
 
-### Beispiel-plot für den Median-R-Wert
+### Example plot for median R-value
 
 ```{r}
-# 1. Median berechnen, NA-Werte ignorieren
+# 1. Calculate median, ignore NAs
 median_r <- median(kor_tabelle, na.rm = TRUE)
 
-# 2. Matrix der absoluten Differenzen zum Median
+# 2. Matrix of absolute differences to median
 diffs <- abs(kor_tabelle - median_r)
 
-# 3. Index des minimalen Unterschieds (NA werden automatisch ignoriert)
+# 3. Index of minimal difference (NAs automatically ignored)
 min_index <- which(diffs == min(diffs, na.rm = TRUE), arr.ind = TRUE)[1, , drop = FALSE]
 
-# 4. Fraktion und Paar auslesen (Fallback falls Namen fehlen)
-median_fraktion <- rownames(kor_tabelle)[min_index[1]] %||% min_index[1]
-median_paar <- colnames(kor_tabelle)[min_index[2]] %||% min_index[2]
+# 4. Extract fraction and pair (fallback if names missing)
+median_fraction <- rownames(kor_tabelle)[min_index[1]] %||% min_index[1]
+median_pair <- colnames(kor_tabelle)[min_index[2]] %||% min_index[2]
 
-# 5. Ergebnis ausgeben
-cat("Medianer Korrelationswert:", round(median_r, 3), "\n")
-cat("Nächster Wert in Tabelle:", round(kor_tabelle[min_index], 3), "\n")
-cat("Plot für Fraktion:", median_fraktion, "| Paar:", median_paar, "\n")
-
-
+# 5. Output results
+cat("Median correlation value:", round(median_r, 3), "\n")
+cat("Closest value in table:", round(kor_tabelle[min_index], 3), "\n")
+cat("Plot for fraction:", median_fraction, "| pair:", median_pair, "\n")
 ```
 
-
+#Function to plot correlation with ggplot2
 ```{r}
 library(ggplot2)
 library(dplyr)
 library(tidyr)
 
 plot_correlation <- function(data, col1, col2, color = "", save_path = "") {
-  # Daten auf vollständige Fälle filtern
+  # Filter complete cases
   df <- data %>%
     select(all_of(c(col1, col2))) %>%
     mutate(Protein = rownames(data)) %>%
@@ -761,11 +771,11 @@ plot_correlation <- function(data, col1, col2, color = "", save_path = "") {
     pivot_wider(names_from = Sample, values_from = Value) %>%
     filter(complete.cases(.))
   
-  # Korrelation berechnen
+  # Calculate correlation
   r <- cor(df[[col1]], df[[col2]])
   r_text <- paste0("R = ", round(r, 2))
   
-  # ggplot erstellen
+  # Create ggplot
   p <- ggplot(df, aes_string(x = col1, y = col2)) +
     geom_point(alpha = 0.6, color = color) +
     geom_smooth(method = "lm", se = FALSE, color = "red") +
@@ -777,25 +787,22 @@ plot_correlation <- function(data, col1, col2, color = "", save_path = "") {
              y = max(df[[col2]], na.rm = TRUE), 
              label = r_text, hjust = 0, vjust = 1, size = 10, color = color)
   
-  # Plot anzeigen
+  # Show plot
   print(p)
   
-  # Optional speichern
-  if (!is.null(save_path)) {
+  # Save plot optionally
+  if (save_path != "") {
     ggsave(filename = save_path, plot = p, width = 8, height = 8)
-    cat("Plot wurde gespeichert unter:\n", save_path, "\n")
+    cat("Plot saved at:\n", save_path, "\n")
   }
 }
 
-# Beispielaufruf:
+# Example call:
 plot_correlation(MS_Table_norm, "Fraction18_Ctrl_Rep2", "Fraction18_Ctrl_Rep3", color = "black", save_path = "Postervisuals/vergleich_plot_ggplot.png")
-
 ```
 
 
-
-Skript damit die Tabelle als csv. gespeichert wird > direkt da auf Github > und. in nächstem Dokument dann runterladen
+Save the table as CSV (for Github upload, download in next document)
 ```{r}
 # write.csv(MS_Table_norm, file = "MS_Table.norm.csv")
 ```
-

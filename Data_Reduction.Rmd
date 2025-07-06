@@ -2,6 +2,9 @@
 title: "Data Reduction"
 output: html_document
 date: "2025-05-31"
+editor_options: 
+  markdown: 
+    wrap: 72
 ---
 
 ```{r setup, include=FALSE}
@@ -12,11 +15,14 @@ knitr::opts_chunk$set(echo = TRUE)
 MS_Table_norm = read.table("Datensätze/MS_Table.norm.csv", header=TRUE, row.names=1, sep = ",")
 ```
 
-# PCA
+PCA
+##Principal Component Analysis on Original Data
+### Exploring variance structure and sample clustering with PCA components 1 and 2
+####Authors:Mirjam Biollaz, Jette Klempt-Gießing, Alicia Weeber
+
 ```{r}
 # PCA with original values
 # only Carl's code
-
 pca = prcomp(MS_Table, center = TRUE, scale = TRUE)
 summary(pca)
 pca$sdev
@@ -30,24 +36,11 @@ plot(pca$x[,1], pca$x[,2],
      xlab = 'PC1', ylab = 'PC2')
 ```
 
-```{r}
-# PCA mit normierten Werten
-# nur Carls Code
+##Separation of Normalized Data by Experimental Condition
+###Extract Control and RNase replicates from normalized dataset based on column indexing across fractions
+#### Implemented AI tools: 
+####Authors: Hasset Gessese 
 
-pca = prcomp(MS_Table_norm, center = TRUE, scale = TRUE)
-summary(pca)
-pca$sdev
-variance = (pca$sdev)^2
-prop.variance = variance/sum(variance)
-names(prop.variance) = 1:length(prop.variance)
-barplot(prop.variance[1:20],ylab='Proportion of variance') # we only plot the first 20 PCs
-
-plot(pca$x[,1], pca$x[,2], 
-     col= 'black', pch=19,
-     xlab='PC1',ylab='PC2')
-```
-
-#Splitting the MS_Table_norm table
 ```{r}
 # Number of fractions
 n_fractions <- 25
@@ -69,16 +62,9 @@ MS_Control <- MS_Table_norm[, control_idx]
 MS_RNase <- MS_Table_norm[, rnase_idx]
 ```
 
-
-#Title: Installing the mentioneed libraries 
-#Subtitle: The required packages for clustering analysis and visualization were installed 
-#Name: Hasset Gessese
-# Implemented AI tools: 
-#Remarks: 
-   - factoextra: functions to visualize clustering results, including Elbow and Silhouette methods
-   - cluster: provides silhouette calculation and clustering algorithms
-   - pheatmap: used to create heatmaps for data visualization
-   - RColorBrewer: provides aesthetically pleasing color palettes for the plots => those were adjusted later on to the color palette of the poster (blues tones)
+## Installing the mentioneed libraries
+### The required packages for clustering analysis and visualization were acquired
+####Authors: Hasset Gessese
 
 ```{r install_all_needed, eval=FALSE}
 install.packages(c("factoextra", "cluster", "pheatmap", "RColorBrewer"))
@@ -88,15 +74,17 @@ install.packages(c("factoextra", "cluster", "pheatmap", "RColorBrewer"))
 # For color palettes in plots => library(RColorBrewer)
 ```
 
-#Title: K-Means Clustering Code (in the colour palette of the poster)
-#Subtitle: PCA-Based K-Means Clustering for Normalization Assessment
-#Name: Hasset Gessese
-# Implemented AI tools: Written based on Plenum Code from our Biological Data Analysis class and asjusted through ChatGPT  (e.g. addition of Silhouette Width values etc.)
-#Remarks: 
-   - We used this K-means clustering  as a quality control check after normalization to ensure that the data structure remained interpretable and consistent (shows seperability and stability). 
-   - Because the optimal k (k=6) from this approach did not align with our modeling results, we did not use these clusters for biological conclusions 
-   - Instead we used these results  as a tool to assess the success of normalization.
-   
+##K-Means Clustering
+### PCA-Based K-Means Clustering for Normalization Assessment
+####Implemented AI tools: Based on Code from Biological Data Analysis class and adjusted through ChatGPT (e.g. addition of Silhouette Width values etc.)
+####Authors:Hasset Gessese 
+
+This K-means clustering was used as a quality control check after
+normalization, in order to ensure that the data structure remained
+interpretable and consistent (shows seperability and stability). Because
+the optimal k (k=6) from this approach did not align with our modeling
+results, we did not use these clusters for biological conclusions
+
 ```{r kmeans_pca_clustering, message=FALSE, warning=FALSE}
 
 # Perform Principal Component Analysis (PCA) on the normalized data
@@ -217,371 +205,59 @@ cluster_df <- data.frame(Protein = rownames(MS_Table_norm),
 write.csv(cluster_df, "Cluster_Assignment.csv", row.names = FALSE)
 ```
 
-#The complete Kmean-Clustering Code (not in the poster colours)
-#Title: K-Means Clustering Code (in the colour palette of the poster)
-#Subtitle: PCA-Based K-Means Clustering for Normalization Assessment
-#Name: Hasset Gessese
-# Implemented AI tools:  Written based on Plenum Code from our Biological Data Analysis class and asjusted through ChatGPT  (e.g. addition of Silhouette Width values etc.)
-#Remarks: 
-   - We used this K-means clustering  as a quality control check after normalization to ensure that the data structure remained interpretable and consistent (shows seperability and stability). 
-   - Because the optimal k (k=6) from this approach did not align with our modeling results, we did not use these clusters for biological conclusions 
-   - Instead we used these results  as a tool to assess the success of normalization.
-```{r kmeans_pca_clustering, message=FALSE, warning=FALSE}
-# PCA on normalized table
-pca <- prcomp(MS_Table_norm, center = TRUE, scale. = TRUE)
+## Visualization of a PCA defined by shift categories
+###PCA plot with colour-coded biological conditions
+####Authors: Alicia Weeber
+####Implemented AI tools:
 
-# Display variance proportions (optional)
-prop.variance <- (pca$sdev)^2 / sum(pca$sdev^2)
-barplot(prop.variance[1:10], main = "Variance Proportions (Top 10 PCs)", ylab = "Proportion")
-
-# Select the first 5 principal components for clustering
-pca_data <- pca$x[, 1:5]
-
-# Load required packages
-library(factoextra)
-library(cluster)
-library(RColorBrewer)
-col <- brewer.pal(9, 'Set1')
-
-# Elbow method
-elbow_plot <- fviz_nbclust(pca_data, kmeans, method = "wss") +
-  ggtitle("Elbow Method – Optimal Number of Clusters") +
-  geom_vline(xintercept = 5, linetype = 2, color = "blue")
-print(elbow_plot)
-
-# Silhouette method
-fviz_nbclust(pca_data, kmeans, method = "silhouette") +
-  ggtitle("Silhouette Method – Optimal Number of Clusters")
-
-# Set seed for reproducibility
-set.seed(123)
-
-# K-Means clustering with k = 6 (adjust if needed)
-km <- kmeans(pca_data, centers = 6, nstart = 25)
-cluster_assignment <- km$cluster
-
-# Plot the first two PCs colored by clusters
-plot(
-  pca$x[, 1], pca$x[, 2],
-  col = col[cluster_assignment],
-  pch = 19,
-  xlab = "PC1", ylab = "PC2",
-  main = "K-Means Clustering on PCA (k=6)"
-)
-
-# Draw convex hulls for each cluster
-library(grDevices)
-for (k in 1:max(cluster_assignment)) {
-  cluster_points <- pca$x[cluster_assignment == k, 1:2]
-  if (nrow(cluster_points) >= 3) {
-    hull_indices <- chull(cluster_points)
-    hull_indices <- c(hull_indices, hull_indices[1])
-    polygon(
-      cluster_points[hull_indices, ],
-      border = col[k],
-      col = adjustcolor(col[k], alpha.f = 0.4),
-      lwd = 2
-    )
-  }
-}
-
-# Add silhouette plot with average silhouette widths ---
-
-# Check if dataset is too large (> 1000 observations)
-n_obs <- nrow(pca_data)
-sample_threshold <- 1000
-
-if (n_obs > sample_threshold) {
-  set.seed(42)
-  sample_idx <- sample(1:n_obs, 500)
-  pca_sample <- pca_data[sample_idx, ]
-  cluster_sample <- cluster_assignment[sample_idx]
-  dist_sample <- dist(pca_sample)
-  sil <- silhouette(cluster_sample, dist_sample)
-  message("The silhouette plot is now based on a sample of 500 observations")
-} else {
-  dist_matrix <- dist(pca_data)
-  sil <- silhouette(cluster_assignment, dist_matrix)
-}
-
-# Calculate average silhouette widths
-avg_sil_width <- mean(sil[, "sil_width"])
-avg_sil_per_cluster <- tapply(sil[, "sil_width"], sil[, "cluster"], mean)
-
-# Create annotation text
-label_text <- paste0(
-  "Average Silhouette Width: ", round(avg_sil_width, 3), "\n",
-  paste0(
-    "Cluster ", names(avg_sil_per_cluster), ": ",
-    round(avg_sil_per_cluster, 3),
-    collapse = "\n"
-  )
-)
-
-# Create annotated silhouette plot
-sil_plot <- fviz_silhouette(sil, palette = col) +
-  ggtitle("Silhouette Plot for K-Means Clustering") +
-  theme(plot.title = element_text(hjust = 0.5))
-
-sil_plot +
-  annotate(
-    "text",
-    x = Inf, y = Inf,
-    label = label_text,
-    hjust = 1.05, vjust = 1.05,
-    size = 3,
-    fontface = "italic"
-  )
-
-## Export cluster assignment as CSV
-cluster_df <- data.frame(
-  Protein = rownames(MS_Table_norm),
-  Cluster = cluster_assignment
-)
-write.csv(cluster_df, "Cluster_Assignment.csv", row.names = FALSE)
-```
-
-
-
-========================================================================================================================
-##Plotvisualisierungen für die Data Exploration 
-# Heatmap für Replikatenvergleich  
-```{r heatmap_replikate}
-
-print(dim(MS_Table_norm))
-print(colnames(MS_Table_norm))
-
-
-# Pakete laden
-library(pheatmap)
-library(RColorBrewer)
-
-# Definiere die Replikatspalten (aus deinem Clean-Up bekannt)
-replikate <- c("Fraction1_Ctrl_Rep1", "Fraction1_Ctrl_Rep2", "Fraction1_Ctrl_Rep3",
-               "Fraction1_RNase_Rep1", "Fraction1_RNase_Rep2", "Fraction1_RNase_Rep3")
-
-# Prüfen, welche Spalten fehlen => nur zur Fehlerfindung => wird dannach rausgenommen 
-missing <- replikate[!replikate %in% colnames(MS_Table_norm)]
-print(missing)
-
-# Subset aus der normierten Matrix
-data_for_heatmap <- MS_Table_norm[, replikate]
-
-# Transponieren: Zeilen = Replikate, Spalten = Proteine
-data_for_heatmap_t <- t(data_for_heatmap)
-
-# Farben für die Heatmap
-heat_colors <- colorRampPalette(brewer.pal(9, "YlGnBu"))(100)
-
-# Heatmap zeichnen
-pheatmap(data_for_heatmap_t,
-         scale = "row",  # z-Standardisierung der Replikate
-         clustering_distance_rows = "euclidean",
-         clustering_distance_cols = "euclidean",
-         clustering_method = "complete",
-         color = heat_colors,
-         main = "Heatmap: Vergleich der Replikate (MS_Table_norm)")
-```
-
-
-# Heatmap Proteinverteilung RNAse und Kontrolle im Vergleich
-```{r heatmap_rnase_kontrolle}
-# Libraries
-library(pheatmap)
-library(RColorBrewer)
-
-# Spaltennamen (Proben)
-gruppen <- c("Kontrolle", "Kontrolle", "Kontrolle", "RNAse", "RNAse", "RNAse")
-names(gruppen) <- c("Fraction1_Ctrl_Rep1", "Fraction1_Ctrl_Rep2", "Fraction1_Ctrl_Rep3",
-                    "Fraction1_RNase_Rep1", "Fraction1_RNase_Rep2", "Fraction1_RNase_Rep3")
-
-# Annotation für die Probenfarben
-annotation_col <- data.frame(Gruppe = gruppen)
-rownames(annotation_col) <- names(gruppen)
-
-# Farben definieren
-group_colors <- list(Gruppe = c(Kontrolle = "lightblue", RNAse = "salmon"))
-
-# Optional: Top 50 variabelste Proteine auswählen
-top_var <- apply(MS_Table_norm, 1, var)
-top50 <- MS_Table_norm[order(top_var, decreasing = TRUE)[1:50], ]
-
-# Heatmap zeichnen
-pheatmap(top50,
-         scale = "row",
-         annotation_col = annotation_col,
-         annotation_colors = group_colors,
-         clustering_distance_cols = "euclidean",
-         clustering_method = "complete",
-         color = colorRampPalette(brewer.pal(9, "RdBu"))(100),
-         main = "Proteinverteilung: RNAse vs. Kontrolle")
-```
+This code is used to identify potential clustering related to the pre-defined  categories 
 
 ```{r}
-df_ergebnisse
-```
-
-
-
-
-===========================================================================================================================================================================================================================================================================================================================================================================
-==> Vergleich mit Shift_Score ==> KANN RAUS ODER? 
-
-```{r}
-# PCA auf normierter Tabelle
-pca <- prcomp(MS_Table_norm, center = TRUE, scale. = TRUE)
-
-# Varianz-Anteile anzeigen (optional)
-prop.variance <- (pca$sdev)^2 / sum(pca$sdev^2)
-barplot(prop.variance[1:10], main = "Varianzanteile (Top 10 PCs)", ylab = "Proportion")
-
-# Auswahl der ersten 5 Hauptkomponenten für Clustering
-pca_data <- pca$x[, 1:5]
-
-# Benötigte Pakete laden
-library(factoextra)
-library(cluster)
-library(RColorBrewer)
-library(ggplot2)
-
-col <- brewer.pal(9, 'Set1')
-
-# Elbow-Methode mit manueller Knickpunkt-Linie
-elbow_plot <- fviz_nbclust(pca_data, kmeans, method = "wss") +
-  ggtitle("Elbow-Methode – optimale Clusteranzahl") +
-  geom_vline(xintercept = 5, linetype = 2, color = "blue")
-
-print(elbow_plot)
-
-# Silhouette-Methode
-fviz_nbclust(pca_data, kmeans, method = "silhouette") +
-  ggtitle("Silhouette-Methode – optimale Clusteranzahl")
-
-# Setze Seed für Reproduzierbarkeit
-set.seed(123)
-
-# K-Means Clustering mit k=6
-km <- kmeans(pca_data, centers = 6, nstart = 25)
-
-# Cluster-Zuordnung speichern
-cluster_assignment <- km$cluster
-
-# Plot der ersten zwei PCs mit Clusterfarben
-plot(pca$x[,1], pca$x[,2],
-     col = col[cluster_assignment],
-     pch = 19,
-     xlab = "PC1", ylab = "PC2",
-     main = "K-Means Clustering auf PCA (k=6)")
-
-# Silhouette-Plot
-n_obs <- nrow(pca_data)
-sample_threshold <- 1000
-
-if (n_obs > sample_threshold) {
-  set.seed(42)
-  sample_idx <- sample(1:n_obs, 500)
-  pca_sample <- pca_data[sample_idx, ]
-  cluster_sample <- cluster_assignment[sample_idx]
-  dist_sample <- dist(pca_sample)
-  sil <- silhouette(cluster_sample, dist_sample)
-  message("Der Silhouette-Plot basiert jetzt auf einer Stichprobe von 500 Beobachtungen")
-} else {
-  dist_matrix <- dist(pca_data)
-  sil <- silhouette(cluster_assignment, dist_matrix)
-}
-
-fviz_silhouette(sil) +
-  ggtitle("Silhouette-Plot für K-Means Clustering")
-
-# Export der Cluster-Zuordnung als CSV
-cluster_df <- data.frame(Protein = rownames(MS_Table_norm),
-                         Cluster = cluster_assignment)
-
-write.csv(cluster_df, "Cluster_Zuordnung.csv", row.names = FALSE)
-
-
-####################
-# HIER: Plot mit Shift-Kategorien
-####################
-
-# Shift-Kategorien aus df_ergebnisse holen
-# Angenommen df_ergebnisse hat:
-# - Spalte 1: Proteinname
-# - Spalte 14: Shift-Kategorie
-shift_df <- data.frame(
-  Protein = df_ergebnisse[[1]],
-  Shift_Kategorie = df_ergebnisse[[14]]
-)
-
-# PCA-Scores (PC1 & PC2) holen und mit Cluster kombinieren
-pca_scores <- as.data.frame(pca$x[, 1:2])
-pca_scores$Protein <- rownames(pca$x)
-pca_scores$Cluster <- factor(cluster_assignment)
-
-# Merge mit Shift-Kategorien
-plot_df <- merge(pca_scores, shift_df, by = "Protein")
-
-
-# Farben für Shift-Kategorien definieren
-shift_colors <- c("kein_Shift" = "violet",
-                  "moderater_right_shift" = "#E69F00",
-                  "starker_right_shift" = "#D55E00",
-                  "starker_left_shift" = "#0072B2",
-                  "moderater_left_shift" = "#56B4E9")
-
-# Plot: Cluster unverändert, Farbe = Shift-Kategorie
-ggplot(plot_df, aes(x = PC1, y = PC2, color = Shift_Kategorie)) +
-  geom_point(size = 2, alpha = 0.8) +
-  scale_color_manual(values = shift_colors) +
-  labs(title = "K-Means Clustering auf PCA (k=6) – eingefärbt nach Shift-Kategorie",
-       subtitle = "Cluster unverändert; Farbe zeigt Shift-Kategorie",
-       x = "PC1", y = "PC2", color = "Shift-Kategorie") +
-  theme_minimal()
-
-```
-==> WAS WAR DAS - KANN DAS RAUS???
-```{r}
-# Dein PCA-Objekt
+# Your PCA object
 pca = prcomp(MS_Table_norm, center = TRUE, scale. = TRUE)
 
-# PCA-Scores (Koordinaten der Proteine auf den PCs)
+# PCA scores (coordinates of the proteins on the PCs)
 scores = pca$x
 
-# Die Shift-Kategorien aus der Ergebnis-Tabelle holen
-shift_kategorie = df_ergebnisse[,14]  # Spalte 14
+# Get the shift categories from the results table
+shift_kategorie = df_ergebnisse[,14]  # Column 14
 
-# Prüfen, dass die Reihenfolge der Kategorien zu den PCA-Scores passt
-# Wenn MS_Table_norm und df_ergebnisse dieselben Zeilenreihenfolgen haben, ist das ok.
-# Falls nicht, musst du sicherstellen, dass sie aufeinander gematcht sind!
+# Check that the order of categories matches the PCA scores
+# If MS_Table_norm and df_ergebnisse have the same row order, it's fine.
+# If not, you need to make sure they are matched properly!
 
-# Kategorien als Faktor (optional mit Reihenfolge)
+# Convert categories to a factor (optionally with defined order)
 shift_kategorie = factor(shift_kategorie, levels = c("kein_shift",
                                                      "moderater_left_shift",
                                                      "starker_left_shift",
                                                      "moderater_right_shift",
                                                      "starker_right_shift"))
 
-# Farben für die Kategorien definieren
+# Define colors for the categories
 farben = c("kein_shift"="grey50",
            "moderater_left_shift"="orange",
            "starker_left_shift"="red",
            "moderater_right_shift"="skyblue",
            "starker_right_shift"="blue")
 
-# Layout: 1 Zeile, 2 Spalten
-layout(matrix(c(1,2), 1, 2), widths=c(4,1))  # 4 Teile Plot, 1 Teil Legende
+# Layout: 1 row, 2 columns (increase space for legend)
+layout(matrix(c(1,2), 1, 2), widths=c(3.5,1.5))  # Adjusted layout to avoid overlap
 
-# PCA-Plot
-par(mar=c(5,4,4,1))  # normaler Rand, rechts kleiner (weil Legende eigene Spalte hat)
+# PCA plot
+par(mar=c(5,4,4,2))  # Slightly larger right margin for spacing
 plot(scores[,1], scores[,2],
      col=farben[shift_kategorie],
      pch=19,
      xlab="PC1", ylab="PC2",
-     main="PCA: Färbung nach Shift-Kategorie")
+     main="PCA: Coloring by Shift Category")
 
-# Legende in eigenem Feld
-par(mar=c(0,0,0,0))  # keine Ränder
-plot.new()           # leeres Plotfenster
+# Legend in separate panel
+par(mar=c(2,0,2,0))  # Minimal vertical padding
+plot.new()           # empty plot window
 legend("center", legend=levels(shift_kategorie),
-       col=farben, pch=19, title="Shift-Kategorie")
+       col=farben, pch=19, title="Shift Category", cex=0.9)
+```
+
+```{r}
+df_ergebnisse
 ```
