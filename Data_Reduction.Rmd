@@ -16,9 +16,7 @@ MS_Table_norm = read.table("Datensätze/MS_Table.norm.csv", header=TRUE, row.nam
 ```
 
 ## Principal Component Analysis on Original Data
-
-### Exploring variance structure and sample clustering with PCA components 1 and 2
-
+###Reduces the dimensionality of the data by identifying the main axes of variation
 #### Authors: Mirjam Biollaz, Jette Klempt-Gießing, Alicia Weeber
 
 ```{r}
@@ -38,10 +36,6 @@ plot(pca$x[,1], pca$x[,2],
 ```
 
 ## Separation of Normalized Data by Experimental Condition
-
-### Extract Control and RNase replicates from normalized dataset
-
-#### Implemented AI tools:
 
 #### Authors: Hasset Gessese
 
@@ -66,7 +60,7 @@ MS_Control <- MS_Table_norm[, control_idx]
 MS_RNase <- MS_Table_norm[, rnase_idx]
 ```
 
-## Installing the mentioneed libraries
+## Installing mentioned libraries
 
 ### The required packages for clustering analysis and visualization were acquired
 
@@ -83,8 +77,6 @@ install.packages(c("factoextra", "cluster", "pheatmap", "RColorBrewer"))
 ## K-Means Clustering
 
 ### PCA-Based K-Means Clustering for Normalization Assessment
-
-#### Implemented AI tools: Based on Code from Biological Data Analysis class and adjusted through ChatGPT (e.g. addition of Silhouette Width values etc.)
 
 #### Authors: Hasset Gessese
 
@@ -214,11 +206,9 @@ cluster_df <- data.frame(Protein = rownames(MS_Table_norm),
 write.csv(cluster_df, "Cluster_Assignment.csv", row.names = FALSE)
 ```
 
-## Visualization of a PCA defined by shift categories
+## Visualization of a PCA defined by 5 shift categories
 
-### PCA plot with colour-coded biological conditions
-
-#### Implemented AI tools:
+### PCA plot with color-coded biological conditions (no shift, moderate left shift, strong left shift, moderate right shift, strong right shift)
 
 #### Authors: Alicia Weeber
 
