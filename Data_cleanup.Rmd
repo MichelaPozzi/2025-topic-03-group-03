@@ -497,6 +497,82 @@ svg <- export_svg(graph)
 rsvg_png(charToRaw(svg), file = "data_cleaning_workflow.png", width = 1200, height = 600)
 ```
 
+```{r}
+initial_processing = grViz("
+digraph initial_processing {
+  graph [rankdir = LR, fontsize = 10, splines = ortho, fontname='Arial']
+  node [shape=box, style=filled, fontname='Arial', fontsize=10, penwidth=1.2, fillcolor='#EDE6F2', color=black]
+  edge [fontsize=9, color=black]
+
+  subgraph cluster_0 {
+    label = 'Initial Processing'
+    style = rounded
+    color = lightgrey
+
+    A [label = '1. Raw Data\\n(150 columns)']
+    B [label = '2. Split by Fractions\\n(3 columns each)']
+    C [label = '3. Mean per Fraction']
+
+    A -> B -> C
+  }
+}
+")
+
+normalization = grViz("
+digraph normalization {
+  graph [rankdir = LR, fontsize = 10, splines = ortho, fontname='Arial']
+  node [shape=box, style=filled, fontname='Arial', fontsize=10, penwidth=1.2, fillcolor='#EDE6F2', color=black]
+  edge [fontsize=9, color=black]
+
+  subgraph cluster_1 {
+    label = 'Normalization'
+    style = rounded
+    color = lightgrey
+
+    D [label = '4. Compute Normalization\\n(minimize replicate deviation)']
+    E [label = '5. Normalize per Replicate']
+
+    D -> E
+  }
+}
+")
+
+
+smoothing_scaling = grViz("
+digraph smoothing_scaling {
+  graph [rankdir = LR, fontsize = 10, splines = ortho, fontname='Arial']
+  node [shape=box, style=filled, fontname='Arial', fontsize=10, penwidth=1.2, fillcolor='#EDE6F2', color=black]
+  edge [fontsize=9, color=black]
+
+  subgraph cluster_2 {
+    label = 'Smoothing & Scaling'
+    style = rounded
+    color = lightgrey
+
+    F [label = '6. Sliding Window\\n(3-column average)']
+    G [label = '7. Scale to 100%\\nper Fraction/Replicate']
+
+    F -> G
+  }
+}
+")
+
+library(DiagrammeR)
+library(DiagrammeRsvg)
+library(rsvg)
+
+# Beispiel: exportiere initial_processing
+svg <- export_svg(initial_processing)
+rsvg_png(charToRaw(svg), "Postervisuals/initial_processing.png", width = 3000, height = 3000)
+
+# Normalization
+svg <- export_svg(normalization)
+rsvg_png(charToRaw(svg), "Postervisuals/normalization.png", width = 3000, height = 3000)
+
+# Smoothing & Scaling
+svg <- export_svg(smoothing_scaling)
+rsvg_png(charToRaw(svg), "Postervisuals/smoothing_scaling.png", width = 3000, height = 3000)
+```
 
 ```{r}
 library(ggplot2)

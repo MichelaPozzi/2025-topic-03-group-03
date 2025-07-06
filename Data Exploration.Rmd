@@ -359,7 +359,8 @@ for (i in 1:nrow(shared_peaks)) {
       return(NA)
     }
   })
-   # remove NA values
+  
+  # remove NA values
   ctrl_vals = na.omit(ctrl_vals)
   rnase_vals = na.omit(rnase_vals)
 
@@ -373,30 +374,27 @@ for (i in 1:nrow(shared_peaks)) {
 
   #t-test only if both groups have at least 2 values
   # Assumption for the t-test that replicates are normally distributed in order to be able to perform the t-test at all
-  # Variance test with F-test to see whether control and RNAse have the same variance: important for t-test implementation
   if (length(ctrl_vals) >= 2 && length(rnase_vals) >= 2) {
-    ftest_p = tryCatch(var.test(ctrl_vals, rnase_vals)$p.value, error = function(e) NA) 
-    #The p-value of the F-test (ftest_p) decides whether to assume equal or unequal variances in the next step in the t-test
-    #If F-test p-value >0.05 → variances not significantly different
-    #If F-test p-value ≤0.05 → variances not equal 
-    #t-test, only if variance equals
+    # Paired t-test 
     t_p = tryCatch(
-      t.test(ctrl_vals, rnase_vals, var.equal = (ftest_p > 0.05))$p.value, # Catch possible errors with tryCatch
+      t.test(ctrl_vals, rnase_vals, paired = TRUE)$p.value, 
       error = function(e) NA
     )
-  } 
+  } else {
+    t_p = NA
+  }
+
   p_Werte = rbind(p_Werte, data.frame(Protein = protein, Fraktion = fraktion, P_Value = t_p))
 }
-
 
 # FDR-Correction: adjust all p-values in your overall dataset to control the false discovery rate.
 p_Werte$adj_p = p.adjust(p_Werte$P_Value, method = "BH")
 
+# All significant p-values - haben wir die überhaupt irgendwo benutzt?
+p_werte_005 = p_Werte$Protein[which(p_Werte$adj_p <= 0.05)]
+
 ```
 
-```{r}
-p_werte_005 = p_Werte$Protein[which(p_Werte$adj_p <= 0.05)]
-```
 
 ## Create a function with criteria selected by us that are determined for each protein. These criteria will later predict which Shift_Category each protein will be assigned to.
 #The following criteria are examined:
