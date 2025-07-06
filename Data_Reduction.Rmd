@@ -210,12 +210,9 @@ write.csv(cluster_df, "Cluster_Assignment.csv", row.names = FALSE)
 
 ## Visualization of a PCA defined by 5 shift categories
 
-### PCA plot with color-coded biological conditions (no shift, moderate left shift, strong left shift, moderate right shift, strong right shift)
+### PCA plot with potential biological conditions (no shift, moderate left shift, strong left shift, moderate right shift, strong right shift)
 
 #### Authors: Alicia Weeber
-
-This code is used to identify potential clustering related to the
-pre-defined categories
 
 ```{r}
 # Your PCA object
