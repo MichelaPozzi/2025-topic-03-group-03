@@ -15,10 +15,11 @@ knitr::opts_chunk$set(echo = TRUE)
 MS_Table_norm = read.table("Datensätze/MS_Table.norm.csv", header=TRUE, row.names=1, sep = ",")
 ```
 
-PCA
-##Principal Component Analysis on Original Data
+## Principal Component Analysis on Original Data
+
 ### Exploring variance structure and sample clustering with PCA components 1 and 2
-####Authors:Mirjam Biollaz, Jette Klempt-Gießing, Alicia Weeber
+
+#### Authors: Mirjam Biollaz, Jette Klempt-Gießing, Alicia Weeber
 
 ```{r}
 # PCA with original values
@@ -36,10 +37,13 @@ plot(pca$x[,1], pca$x[,2],
      xlab = 'PC1', ylab = 'PC2')
 ```
 
-##Separation of Normalized Data by Experimental Condition
-###Extract Control and RNase replicates from normalized dataset based on column indexing across fractions
-#### Implemented AI tools: 
-####Authors: Hasset Gessese 
+## Separation of Normalized Data by Experimental Condition
+
+### Extract Control and RNase replicates from normalized dataset
+
+#### Implemented AI tools:
+
+#### Authors: Hasset Gessese
 
 ```{r}
 # Number of fractions
@@ -63,8 +67,10 @@ MS_RNase <- MS_Table_norm[, rnase_idx]
 ```
 
 ## Installing the mentioneed libraries
+
 ### The required packages for clustering analysis and visualization were acquired
-####Authors: Hasset Gessese
+
+#### Authors: Hasset Gessese
 
 ```{r install_all_needed, eval=FALSE}
 install.packages(c("factoextra", "cluster", "pheatmap", "RColorBrewer"))
@@ -74,10 +80,13 @@ install.packages(c("factoextra", "cluster", "pheatmap", "RColorBrewer"))
 # For color palettes in plots => library(RColorBrewer)
 ```
 
-##K-Means Clustering
+## K-Means Clustering
+
 ### PCA-Based K-Means Clustering for Normalization Assessment
-####Implemented AI tools: Based on Code from Biological Data Analysis class and adjusted through ChatGPT (e.g. addition of Silhouette Width values etc.)
-####Authors:Hasset Gessese 
+
+#### Implemented AI tools: Based on Code from Biological Data Analysis class and adjusted through ChatGPT (e.g. addition of Silhouette Width values etc.)
+
+#### Authors: Hasset Gessese
 
 This K-means clustering was used as a quality control check after
 normalization, in order to ensure that the data structure remained
@@ -206,11 +215,15 @@ write.csv(cluster_df, "Cluster_Assignment.csv", row.names = FALSE)
 ```
 
 ## Visualization of a PCA defined by shift categories
-###PCA plot with colour-coded biological conditions
-####Authors: Alicia Weeber
-####Implemented AI tools:
 
-This code is used to identify potential clustering related to the pre-defined  categories 
+### PCA plot with colour-coded biological conditions
+
+#### Implemented AI tools:
+
+#### Authors: Alicia Weeber
+
+This code is used to identify potential clustering related to the
+pre-defined categories
 
 ```{r}
 # Your PCA object
