@@ -9,18 +9,11 @@ output:
     toc_depth: 3
     theme: default
     fig_path: "knit/"
-    css: |
-      body {
-        font-family: "Calibri", sans-serif;
-        font-size: 16px;
-        line-height: 1.5;
 ---
 
 # HeLa Proteome: Cracking the code of RNA-Dependency
 
 ## Characterization of Proteins Based on Biophysical Properties
-
-Group 4.3 Data Analysis Project
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6, dpi = 300,
@@ -29,7 +22,7 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, fig.width =
 
 ## Objective
 
-| The goal of this analysis is to examine proteomic data from HeLa cells obtained via fractionation experiments with and without RNase treatment. The workflow includes data quality control, normalization, and visualization of signal distribution across fractions. Changes in protein distribution upon RNase treatment are assessed to draw conclusions about the biophysical and functional characteristics of RNA-dependent proteins.
+The goal of this analysis is to examine proteomic data from HeLa cells obtained via fractionation experiments with and without RNase treatment. The workflow includes data quality control, normalization, and visualization of signal distribution across fractions. Changes in protein distribution upon RNase treatment are assessed to draw conclusions about the biophysical and functional characteristics of RNA-dependent proteins.
 
 #### Loading the Data
 
@@ -38,7 +31,7 @@ MS_Table = read.table("Datensätze/RDeeP_HeLa_Interphase.csv", header=TRUE, row.
 ```
 
 ## Description of the Dataset
-
+##### Authors: Mirjam Biollaz, Jette Klempt-Gießing, Alicia Weeber
 The dataset consists of mass spectrometry-based proteomic measurements from HeLa cells subjected to subcellular fractionation with and without RNase treatment.
 
 -   **Columns** represent individual fraction samples, including information on **fraction number** and **replicate**.
@@ -84,21 +77,25 @@ all(sapply(MS_Table, is.numeric))
 ### Required Libraries
 
 ```{r, message=FALSE, warning=FALSE}
-# Plots:
-library(ggplot2) #
-library(dplyr)   #
-library(pracma)  # #For area calculation with trapezoidal rule
-library(DiagrammeR)
-library(DiagrammeRsvg)
-library(rsvg)
-library(tidyr)
-library(readr)
-library(factoextra) # For Elbow and Silhouette methods
-library(cluster) # For silhouette plots
+# for Plotting & Visualization:
+library(ggplot2) # For creating versatile, layered graphics and plots.
 library(pheatmap) # For heatmaps
-library(RColorBrewer) # For color palettes in plots
-library(grDevices)  # For polygon drawing
-library(effects)
+library(RColorBrewer) # Provides nice color palettes that can be used in plots for better aesthetics and color consistency.
+library(grDevices)  # Contains functions for drawing polygons and other graphic primitives
+library(DiagrammeR) # For creating diagrams and flowcharts programmatically using graph syntax.
+library(DiagrammeRsvg) # Works with DiagrammeR to export diagrams as SVG.
+library(rsvg) # Converts SVG images (such as from DiagrammeRsvg) into other formats (e.g., PNG).
+
+# for Data Manipulation & Tables
+library(dplyr) # For data wrangling — filtering, selecting, grouping, summarizing data frames with readable syntax.
+library(tidyr) # For reshaping and tidying data, e.g., converting between wide and long formats.
+library(readr) # For fast and friendly reading of flat files (CSV, TSV).
+
+# for Statistics & Clustering & PCA
+library(cluster)  # For cluster analysis — calculating silhouette widths
+library(factoextra) # Provides functions to extract and visualize results of multivariate data analyses like PCA, clustering, and helps create elbow and silhouette plots.
+library(pracma) # Provides practical numerical math functions — here used for area calculation with trapezoidal rule
+library(effects) # For calculating and plotting effects of predictors in regression models (helps interpret model results)
 ```
 
 
@@ -107,11 +104,7 @@ library(effects)
 A consistent and visually appealing color palette is used throughout the code to distinguish data categories clearly.
 
 ```{r, results='hide'}
-# Hexcodes für unteschiedliche Farben; abgestimmt auf das Poster
-
- "#C7D5DE" # Balkenüberschirft
- "#DFE3EA" # Hintergrundfarbe
- "#617297" # Überschirftenboxen
+# Hexcodes for the powerpoint-paltte, using for the poster
 
 "#A786C2"; "#8684C2"; "#617297"; "#7396AD"; "#8CABB5"; "#728083"
 "#EDE6F2"; "#E7E6F2"; "#DFE2EA"; "#E2EAEE"; "#E7EEF0"; "#E2E5E6"
@@ -123,7 +116,6 @@ A consistent and visually appealing color palette is used throughout the code to
 
 # Color palette for treatments
 treatment_colors = c("Control" = "#8CABB5", "RNase" = "#A786C2")
-
 
 # Color palette for shifts 
 shift_colors = c(
@@ -138,7 +130,11 @@ gradient_colour2 = c("#C6D4DE", "#7396AD", "#527286", "#485571", "#394041")
 # Color for RBPs & non_RBPs
 color_rbp = c(RBP = "#504DA4",NO_RBP = "#7396AD")
 
-# Einheitliches Poster-Theme
+# Color for Clustering
+cluster_colors = c("#7E51A4", "#504DA4", "#485571","#7396AD", "#DBCEE6", "#A9B3B5")
+
+
+# Poster-Theme
 theme_poster = theme_minimal(base_size = 14) +
   theme(
     plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
@@ -148,32 +144,26 @@ theme_poster = theme_minimal(base_size = 14) +
     legend.position = "right"
   )
 
-
-
-
 ```
 
 # Data Cleanup
-
+##### Authors: Mirjam Biollaz, Jette Klempt-Gießing, Alicia Weeber
 ## Goal
 
 The goal of the data cleanup step is to prepare the raw mass spectrometry data for reliable downstream analysis by addressing technical variability and ensuring the data’s overall quality and consistency. Mass spectrometry measurements often contain noise and systematic differences due to sample handling, instrument fluctuations, or experimental conditions. These technical variations can obscure true biological signals and lead to incorrect conclusions if not properly controlled.
 
 #### Remove protein: FHOD3_HUMAN
 
-```{r Remove proteins without data}
+```{r}
 MS_Table = MS_Table[setdiff(rownames(MS_Table), 'FHOD3_HUMAN'),]
 ```
 
 ## Normalization
-
 ### Goal
 
 The goal of this normalization workflow is to reduce technical variation across replicates and enable meaningful comparison of protein distributions across fractions and conditions (e.g., control vs. RNase-treated). By aligning replicate intensities and scaling each profile to a common reference, we ensure that biological patterns are not obscured by measurement noise or loading differences.
 
-### Workflow Overview
-##### Authors: Mirjam Biollaz, Jette Klempt-Gießing, Alicia Weeber
-
+### Workflow
 The diagram below summarizes the key steps of the data cleaning and normalization process:
 
 ```{r, include=FALSE}
@@ -225,9 +215,9 @@ rsvg_png(charToRaw(svg), file = "Postervisuals/data_cleaning_workflow.png", widt
 
 This workflow ensures consistent, comparable profiles across all proteins and conditions.
 
-
-
 ```{r, results='hide'}
+# Setup consistent names for fractions, mean tables, replicates, and treatments. These predefined names streamline access and automate processing throughout the analysis workflow.
+
 Fraktionsnamen = c('Fraction1_Ctrl', 'Fraction1_RNAse', 'Fraction2_Ctrl', 'Fraction2_RNAse','Fraction3_Ctrl', 'Fraction3_RNAse','Fraction4_Ctrl', 'Fraction4_RNAse','Fraction5_Ctrl', 'Fraction5_RNAse','Fraction6_Ctrl', 'Fraction6_RNAse','Fraction7_Ctrl', 'Fraction7_RNAse','Fraction8_Ctrl', 'Fraction8_RNAse','Fraction9_Ctrl', 'Fraction9_RNAse','Fraction10_Ctrl', 'Fraction10_RNAse','Fraction11_Ctrl', 'Fraction11_RNAse','Fraction12_Ctrl', 'Fraction12_RNAse','Fraction13_Ctrl', 'Fraction13_RNAse','Fraction14_Ctrl', 'Fraction14_RNAse','Fraction15_Ctrl', 'Fraction15_RNAse','Fraction16_Ctrl', 'Fraction16_RNAse','Fraction17_Ctrl', 'Fraction17_RNAse','Fraction18_Ctrl', 'Fraction18_RNAse','Fraction19_Ctrl', 'Fraction19_RNAse','Fraction20_Ctrl', 'Fraction20_RNAse','Fraction21_Ctrl', 'Fraction21_RNAse','Fraction22_Ctrl', 'Fraction22_RNAse','Fraction23_Ctrl', 'Fraction23_RNAse','Fraction24_Ctrl', 'Fraction24_RNAse','Fraction25_Ctrl', 'Fraction25_RNAse')
 
 meantabellen = c('mean_Fraction1_Ctrl', 'mean_Fraction1_RNAse', 'mean_Fraction2_Ctrl', 'mean_Fraction2_RNAse','mean_Fraction3_Ctrl', 'mean_Fraction3_RNAse','mean_Fraction4_Ctrl', 'mean_Fraction4_RNAse','mean_Fraction5_Ctrl', 'mean_Fraction5_RNAse','mean_Fraction6_Ctrl', 'mean_Fraction6_RNAse','mean_Fraction7_Ctrl', 'mean_Fraction7_RNAse','mean_Fraction8_Ctrl', 'mean_Fraction8_RNAse','mean_Fraction9_Ctrl', 'mean_Fraction9_RNAse','mean_Fraction10_Ctrl', 'mean_Fraction10_RNAse','mean_Fraction11_Ctrl', 'mean_Fraction11_RNAse','mean_Fraction12_Ctrl', 'mean_Fraction12_RNAse','mean_Fraction13_Ctrl', 'mean_Fraction13_RNAse','mean_Fraction14_Ctrl', 'mean_Fraction14_RNAse','mean_Fraction15_Ctrl', 'mean_Fraction15_RNAse','mean_Fraction16_Ctrl', 'mean_Fraction16_RNAse','mean_Fraction17_Ctrl', 'mean_Fraction17_RNAse','mean_Fraction18_Ctrl', 'mean_Fraction18_RNAse','mean_Fraction19_Ctrl', 'mean_Fraction19_RNAse','mean_Fraction20_Ctrl', 'mean_Fraction20_RNAse','mean_Fraction21_Ctrl', 'mean_Fraction21_RNAse','mean_Fraction22_Ctrl', 'mean_Fraction22_RNAse','mean_Fraction23_Ctrl', 'mean_Fraction23_RNAse','mean_Fraction24_Ctrl', 'mean_Fraction24_RNAse','mean_Fraction25_Ctrl', 'mean_Fraction25_RNAse')
@@ -242,9 +232,8 @@ Treatmentnamen = c('Ctrl1_norm','Ctrl2_norm','Ctrl3_norm','RNAse1_norm','RNAse2_
 
 Proteinnamen = rownames(MS_Table)
 ```
-
+#### Column means for each submatrix as vector
 ```{r}
-# Column means for each submatrix as vector
 for (i in 1:50) {
   spalten_index = ((i-1) * 3 + 1):(i * 3)  # Each loop processes 3 columns together
   teilmatrix = MS_Table[,spalten_index]
@@ -254,9 +243,8 @@ for (i in 1:50) {
   assign(paste0('mean_', Fraktionsnamen[i]), Mittelwerte)  # Automatically assigns correct name
 }
 ```
-
+#### Normalization factor per fraction
 ```{r}
-# Normalization factor per fraction
 normf.fraktion = c()
 for (i in 1:50) {
     
@@ -275,9 +263,8 @@ for (i in 1:50) {
   }
 }
 ```
-
+#### Normalization factor for each replicate
 ```{r}
-# Normalization factor for each replicate
 # Divide the normalization factor per fraction by each replicate’s mean
 normf.rep = c()
 for (i in 1:50) {
@@ -286,9 +273,8 @@ for (i in 1:50) {
   }
 }
 ```
-
+#### Normalize the data to the mean
 ```{r}
-# Normalize the data to the mean
 # Apply replicate-specific normalization factors to each corresponding replicate
 MS_Table_norm_mittel = as.data.frame(matrix(NA, nrow = nrow(MS_Table), ncol = 150))
 for (i in 1:150) {
@@ -297,20 +283,15 @@ for (i in 1:150) {
 colnames(MS_Table_norm_mittel) = colnames(MS_Table)
 rownames(MS_Table_norm_mittel) = rownames(MS_Table)
 ```
-
+#### Normalize the data to 100 using a sliding window
 ```{r}
-# Normalize the data to 100 using a sliding window
 # Create subtables for individual replicates
-
 for (i in 1:6) {
   spalten_index = seq(from = i, to = 150, by = 6)
   teilmatrix = MS_Table_norm_mittel[, spalten_index]
   
   assign(Replikatsnamen[i], teilmatrix)
 }
-```
-
-```{r}
 # Apply sliding window
 for (i in 1:6) {
   
@@ -323,9 +304,8 @@ for (i in 1:6) {
   assign(SW_Replikatsnamen[i], teilmatrix)  # Automatically assigns the correct name
 }
 ```
-
+#### Normalize sliding window output to 100%
 ```{r}
-# Normalize sliding window output to 100%
 for (i in 1:6) {
   teilmatrix = (get(SW_Replikatsnamen[i])) * 100 / rowSums(get(SW_Replikatsnamen[i]))
   teilmatrix[is.na(teilmatrix)] = 0  # Handles cases where a fraction's total is 0 → prevents division
@@ -333,9 +313,8 @@ for (i in 1:6) {
   assign(SW_Replikatsnamen_norm[i], teilmatrix)  # Automatically assigns the correct name
 }
 ```
-
+#### Merge into one final table
 ```{r}
-# Merge into one final table
 matrices = list(SW_Ctrl1_norm, SW_Ctrl2_norm, SW_Ctrl3_norm, SW_RNAse1_norm, SW_RNAse2_norm, SW_RNAse3_norm)
 
 MS_Table_norm = c()
@@ -421,11 +400,9 @@ print(Normalization_plot)
 ```
 
 ## Reproducibility
-##### Authors: Mirjam Biollaz, Jette Klempt-Gießing, Alicia Weeber
-Explanation which correlation method we use:
-Pearson, not Spearman, because we have many zeros — so [Pearson]{.underline}
+Reproducibility across biological replicates ensures that the observed protein distribution patterns are reliable and not due to technical noise. High reproducibility is critical for downstream analyses like peak detection and condition comparisons. It acts as a quality control step to confirm that our experimental setup yields consistent results.
 
-Procedure:
+We use **Pearson correlation** because it measures linear similarity between replicates, which fits our expectation for consistent protein profiles. Unlike Spearman, Pearson is less affected by the many zero values in our data and gives more stable, meaningful results for our type of intensity measurements.
 ```{r}
 # Vector for correlations between columns 1 & 2
 kor_Spalte1_Spalte2 = c()
@@ -480,7 +457,7 @@ Boxplot_Correlations = ggplot(kor_long, aes(x = Pair, y = Correlation, fill = Pa
        y = "Correlation Coefficient") +
   theme(legend.position = "none")
 
-p_violin = ggplot(kor_long, aes(x = Pair, y = Correlation, fill = Pair)) +
+Violinplot_Correlations = ggplot(kor_long, aes(x = Pair, y = Correlation, fill = Pair)) +
   geom_violin(trim = FALSE) +
   geom_boxplot(width = 0.1, fill = "white") +
   scale_fill_manual(values = c("#7E51A4", "#485571", "#504DA4")) +
@@ -499,9 +476,9 @@ p_violin = ggplot(kor_long, aes(x = Pair, y = Correlation, fill = Pair)) +
   )
 
 # Save plot as PNG
-ggsave(filename = "Postervisuals/Violinplot_Correlations.png", plot = p_violin, width = 13.5, height = 9, units = "cm", dpi = 300)
+ggsave(filename = "Postervisuals/Violinplot_Correlations.png", plot = Violinplot_Correlations, width = 13.5, height = 9, units = "cm", dpi = 300)
 
-print(p_violin)
+print(Violinplot_Correlations)
 ```
 
 ### Example plot for median R-value
@@ -564,14 +541,12 @@ plot_correlation(MS_Table_norm, "Fraction12_RNase_Rep1", "Fraction12_RNase_Rep2"
 ```
 
 # Data exploration
-
+##### Authors: Mirjam Biollaz, Jette Klempt-Gießing, Alicia Weeber
 ## Goal
 
 Now we have the normalized values for all proteins and can examine our dataset in detail. Our goal is to identify differences between the control and RNase samples. To do this, we first determine both absolute and local maxima for all proteins. To take it a step further, we want to create our own function that can assign each protein to a shift category based on criteria we define ourselves. So now, let’s take a closer look at our proteins.
 
-## Workflow exploration
-
-##### Authors: Mirjam Biollaz, Jette Klempt-Gießing, Alicia Weeber
+## Workflow
 
 #### Create subtables for each replicate from the normalized table
 ```{r}
@@ -1329,7 +1304,7 @@ invisible(dev.off())
 
 ```
 
-![Protein_distribution](Postervisuals/protein_distribution.png)
+![](Postervisuals/protein_distribution.png)
 
 # Data Reduction
 ## Principal Component Analysis on Original Data
@@ -1351,7 +1326,7 @@ plot(pca$x[,1], pca$x[,2],
 ```
 
 #### Separation of Normalized Data by Experimental Condition
-##### Authors: Hasset Gessese
+##### Author: Hasset Gessese
 
 ```{r}
 # Number of fractions
@@ -1377,7 +1352,7 @@ MS_RNase = MS_Table_norm[, rnase_idx]
 ## K-Means Clustering
 
 #### PCA-Based K-Means Clustering for Normalization Assessment
-##### Authors: Hasset Gessese
+##### Author: Hasset Gessese
 
 This K-means clustering was used as a quality control check after normalization, in order to ensure that the data structure remained interpretable and consistent (shows seperability and stability). Because the optimal k (k=6) from this approach did not align with our modeling results, we did not use these clusters for biological conclusions
 
@@ -1396,12 +1371,6 @@ barplot(prop.variance[1:10], main = "Variance Proportions (Top 10 PCs)", ylab = 
 
 # Select the first 5 principal components as features for clustering
 pca_data = pca$x[, 1:5]
-
-# Define a custom color palette (poster colors) for cluster visualization
-cluster_colors = c(
-  "#7E51A4", "#504DA4", "#485571",
-  "#7396AD", "#DBCEE6", "#A9B3B5"
-)
 
 # Use the Elbow method to estimate the optimal number of clusters (k)
 elbow_plot = fviz_nbclust(pca_data, kmeans, method = "wss") +
@@ -1697,7 +1666,6 @@ print(proteins_per_shift)
 ```
 
 
-
 ## Linear regression analysis: Isoelectric point and mass as predictors for the shift_score
 
 Several linear regression analyses were performed to find correlations between different biophysical characteristics of the proteins and the Shift score. Many of those analyses are not shown anymore because they all did not identify significant predictors for the shift score. One linear regression analysis is performed with the isoelectric point and mass of the proteins as predictors for their shift score. The goal of this regression analysis is to find out whether those two biophysical traits have a significant impact on the Shift_Score and therefore on the categorization of the proteins as RBP or NO_RBP.
@@ -1848,15 +1816,17 @@ plot_df_clean = merge(plot_df_clean,
 ggplot(plot_df_clean, aes(x = PC1, y = PC2, color = Cluster)) +
   geom_point(size = 2, alpha = 0.8) +
   theme_poster +
-  labs(title = "Clustering by pI, mass and shift score ")
+  labs(title = "Clustering by pI, mass and shift score ") +
+  scale_color_brewer(palette = "Set2")
 
 # Silhouette plot for the clustering
 # distance matrix
 dists = dist(scaled_data_no_outlier)
 
 # Silhouette with k-means assignments
+colors_set2 = brewer.pal(4, "Set2")
 sil = silhouette(as.numeric(df_clust_no_outlier$regression_cluster), dists)
-plot(sil, main = "Silhouette-Plot for K-Means-Clustering (k = 4)", col = 2:7, border = NA)
+plot(sil, main = "Silhouette-Plot for K-Means-Clustering (k = 4)", col = colors_set2, border = NA)
 ```
 
 Combining the clustering information with the assignment of each protein to a shift category, the goal is to find out if there is a visible structure in the clustering based on the information of the shiift category. The result shows that clustering the proteins by pI, mass and shift score does not separate the proteins based on their shift category meaning that it was succesful to visualize that pI and mass explain some of variance of the shift score. Therefore the result is that especially left shift proteins have a different isoelectric point than proteins with no shift.
@@ -2008,9 +1978,9 @@ digraph flowchart {
   edge [fontname = 'Arial']
 
   # Defining knots
-  pi [label = 'pI', shape = box, style = filled, fillcolor = '#A786C2']
-  Zinc_finger [label = 'Zinc_finger', shape = box, style = filled, fillcolor = '#8684C2']
-  RBP_classification [label = 'RBP_classification', shape = box, style = filled, fillcolor = '#617297']
+  pi [label = 'pI', shape = box, style = filled, fillcolor = '#7396AD']
+  Zinc_finger [label = 'Zinc_finger', shape = box, style = filled, fillcolor = '#728083']
+  RBP_classification [label = 'RBP_classification', shape = box, style = filled, fillcolor = '#485571']
 
   # arrows
   pi -> RBP_classification
@@ -2020,10 +1990,8 @@ digraph flowchart {
 
 svg = export_svg(overview_logistic)
 rsvg_png(charToRaw(export_svg(overview_logistic)), "Postervisuals/overview_logistic.png", width = 3000)
-
 ```
 ![](Postervisuals/overview_logistic.png)
-```
 
 ```{r}
 df_ergebnisse_phys$RBP_nach_Score = factor(df_ergebnisse_phys$RBP_nach_Score, levels = c("NO_RBP", "RBP"))
@@ -2096,7 +2064,7 @@ df_prop = data.frame(
   percentage_zinc = c(prop_RBP_zinc, prop_NO_RBP_zinc)
 )
 
-ggplot(df_prop, aes(x = group, y = percentage_zinc, fill = group)) +
+proteins_zinc_motiv = ggplot(df_prop, aes(x = group, y = percentage_zinc, fill = group)) +
   geom_bar(stat = "identity", width = 0.6, alpha = 0.8) +
   scale_fill_manual(values = color_rbp) +
   scale_y_continuous(labels = function(x) paste0(x, "%"), limits = c(0, max(df_prop$percentage_zinc) + 5)) +
@@ -2104,6 +2072,11 @@ ggplot(df_prop, aes(x = group, y = percentage_zinc, fill = group)) +
        y = "Proteins with zinc finger motive (%)",
        x = "Classification") +
   theme_poster %+replace% theme(legend.position = "none")
+
+# Save plot as PNG
+ggsave(filename = "Postervisuals/proteins_zinc_motiv.png", plot = proteins_zinc_motiv, width = 11.7, height = 7.5, units = "cm", dpi = 300)
+
+print(proteins_zinc_motiv)
 ```
 
 ```{r}
@@ -2111,3 +2084,10 @@ ggplot(df_prop, aes(x = group, y = percentage_zinc, fill = group)) +
 # shows that there is a significant difference
 wilcox.test(Zinc_Count ~ RBP_nach_Score, data = df_ergebnisse_phys)
 ```
+
+# Discussion
+Through protein classification into shift categories, we could distinguish RBPs from non-RBPs. Compared to previous studies1,3, 53% of RBPs were classified as non-RBPs, and 18% of non-RBPs as RBPs. The test statistics show high specificity (88%) but low sensitivity (36%), suggesting limited detection of all proteins by the function. This is a limited assumption, as studies only separate RBPs and non-RBPs. Many proteins may be RNA-dependent without directly binding RNA.
+
+The results of the linear regression indicate that the isoelectric point differs in RBPs compared to non-RBPs. The pI is higher in RBPs than in non-RBPs. That coincides with the expectation that RBPs are charged more positively in order to interact with negatively charged RNA. The higher pI in RBPs is also found in literature proving the accuracy of the analysis2.
+The conclusion from the logistic regression is that zinc finger motives probably occur more often in RBPs than in non-RBPs. That result is also found in literature and fits the expectation that the motive is one way to bind to RNA4. To further analyze the characteristics of RNA-dependent proteins more data would have been needed as the amount of information for each characteristic often is  not sufficient in the data that was used.
+
