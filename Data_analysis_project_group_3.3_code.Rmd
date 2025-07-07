@@ -11,6 +11,7 @@ output:
     fig_path: "knit/"
 ---
 
+```{=html}
 <style>
   /* Alle Absätze im Blocksatz */
   p {
@@ -36,7 +37,7 @@ output:
     margin-left: 1em;
   }
 </style>
-
+```
 
 # HeLa Proteome: Cracking the code of RNA-dependency
 
@@ -58,7 +59,9 @@ MS_Table = read.table("Datensätze/RDeeP_HeLa_Interphase.csv", header=TRUE, row.
 ```
 
 ## Description of the Dataset
+
 ##### Authors: Mirjam Biollaz, Hasset Gessese, Jette Klempt-Gießing, Alicia Weeber
+
 The dataset consists of mass spectrometry-based proteomic measurements from HeLa cells subjected to subcellular fractionation with and without RNase treatment.
 
 ```{r}
@@ -80,6 +83,7 @@ sum(is.na(MS_Table))
 # Check for Numeric Values
 all(sapply(MS_Table, is.numeric))
 ```
+
 -   **Columns** represent individual fraction samples, including information on **fraction number** and **replicate**.
 
 -   **Rows** correspond to **protein identifiers**, each representing a detected protein.
@@ -122,7 +126,6 @@ library(factoextra) # Provides functions to extract and visualize results of mul
 library(pracma) # Provides practical numerical math functions — here used for area calculation with trapezoidal rule
 library(effects) # For calculating and plotting effects of predictors in regression models (helps interpret model results)
 ```
-
 
 ### Plot Color Scheme and Styling
 
@@ -172,7 +175,9 @@ theme_poster = theme_minimal(base_size = 14) +
 ```
 
 # Data Cleanup
+
 ##### Authors: Mirjam Biollaz, Jette Klempt-Gießing, Alicia Weeber
+
 ## Goal
 
 The goal of the data cleanup step is to prepare the raw mass spectrometry data for reliable downstream analysis by addressing technical variability and ensuring the data’s overall quality and consistency. Mass spectrometry measurements often contain noise and systematic differences due to sample handling, instrument fluctuations, or experimental conditions. These technical variations can obscure true biological signals and lead to incorrect conclusions if not properly controlled.
@@ -184,11 +189,13 @@ MS_Table = MS_Table[setdiff(rownames(MS_Table), 'FHOD3_HUMAN'),]
 ```
 
 ## Normalization
+
 ### Goal
 
 The goal of this normalization workflow is to reduce technical variation across replicates and enable meaningful comparison of protein distributions across fractions and conditions (e.g., control vs. RNase-treated). By aligning replicate intensities and scaling each profile to a common reference, we ensure that biological patterns are not obscured by measurement noise or loading differences.
 
 ### Workflow
+
 The diagram below summarizes the key steps of the data cleaning and normalization process:
 
 ```{r, include=FALSE}
@@ -236,6 +243,7 @@ rsvg_png(charToRaw(svg), file = "Postervisuals/data_cleaning_workflow.png", widt
 
 
 ```
+
 ![](Postervisuals/data_cleaning_workflow.png)
 
 This workflow ensures consistent, comparable profiles across all proteins and conditions.
@@ -257,7 +265,9 @@ Treatmentnamen = c('Ctrl1_norm','Ctrl2_norm','Ctrl3_norm','RNAse1_norm','RNAse2_
 
 Proteinnamen = rownames(MS_Table)
 ```
+
 #### Column means for each submatrix as vector
+
 ```{r}
 for (i in 1:50) {
   spalten_index = ((i-1) * 3 + 1):(i * 3)  # Each loop processes 3 columns together
@@ -268,7 +278,9 @@ for (i in 1:50) {
   assign(paste0('mean_', Fraktionsnamen[i]), Mittelwerte)  # Automatically assigns correct name
 }
 ```
+
 #### Normalization factor per fraction
+
 ```{r}
 normf.fraktion = c()
 for (i in 1:50) {
@@ -288,7 +300,9 @@ for (i in 1:50) {
   }
 }
 ```
+
 #### Normalization factor for each replicate
+
 ```{r}
 # Divide the normalization factor per fraction by each replicate’s mean
 normf.rep = c()
@@ -298,7 +312,9 @@ for (i in 1:50) {
   }
 }
 ```
+
 #### Normalize the data to the mean
+
 ```{r}
 # Apply replicate-specific normalization factors to each corresponding replicate
 MS_Table_norm_mittel = as.data.frame(matrix(NA, nrow = nrow(MS_Table), ncol = 150))
@@ -308,7 +324,9 @@ for (i in 1:150) {
 colnames(MS_Table_norm_mittel) = colnames(MS_Table)
 rownames(MS_Table_norm_mittel) = rownames(MS_Table)
 ```
+
 #### Normalize the data to 100 using a sliding window
+
 ```{r}
 # Create subtables for individual replicates
 for (i in 1:6) {
@@ -329,7 +347,9 @@ for (i in 1:6) {
   assign(SW_Replikatsnamen[i], teilmatrix)  # Automatically assigns the correct name
 }
 ```
+
 #### Normalize sliding window output to 100%
+
 ```{r}
 for (i in 1:6) {
   teilmatrix = (get(SW_Replikatsnamen[i])) * 100 / rowSums(get(SW_Replikatsnamen[i]))
@@ -338,7 +358,9 @@ for (i in 1:6) {
   assign(SW_Replikatsnamen_norm[i], teilmatrix)  # Automatically assigns the correct name
 }
 ```
+
 #### Merge into one final table
+
 ```{r}
 matrices = list(SW_Ctrl1_norm, SW_Ctrl2_norm, SW_Ctrl3_norm, SW_RNAse1_norm, SW_RNAse2_norm, SW_RNAse3_norm)
 
@@ -425,9 +447,11 @@ print(Normalization_plot)
 ```
 
 ## Reproducibility
+
 Reproducibility across biological replicates ensures that the observed protein distribution patterns are reliable and not due to technical noise. High reproducibility is critical for downstream analyses like peak detection and condition comparisons. It acts as a quality control step to confirm that our experimental setup yields consistent results.
 
 We use **Pearson correlation** because it measures linear similarity between replicates, which fits our expectation for consistent protein profiles. Unlike Spearman, Pearson is less affected by the many zero values in our data and gives more stable, meaningful results for our type of intensity measurements.
+
 ```{r}
 # Vector for correlations between columns 1 & 2
 kor_Spalte1_Spalte2 = c()
@@ -467,6 +491,7 @@ kor_tabelle
 ## Visualization of Reproducibility
 
 ### Violinplot for the r-values of the correlation
+
 ```{r}
 kor_long = data.frame(
   Fraction = rep(Fraktionsnamen, 3),
@@ -507,6 +532,7 @@ print(Violinplot_Correlations)
 ```
 
 ### Example plot for median R-value
+
 ```{r}
 # 1. Calculate median, ignore NAs
 median_r = median(kor_tabelle, na.rm = TRUE)
@@ -566,7 +592,9 @@ plot_correlation(MS_Table_norm, "Fraction12_RNase_Rep1", "Fraction12_RNase_Rep2"
 ```
 
 # Data exploration
+
 ##### Authors: Mirjam Biollaz, Jette Klempt-Gießing, Alicia Weeber
+
 ## Goal
 
 Now we have the normalized values for all proteins and can examine our dataset in detail. Our goal is to identify differences between the control and RNase samples. To do this, we first determine both absolute and local maxima for all proteins. To take it a step further, we want to create our own function that can assign each protein to a shift category based on criteria we define ourselves. So now, let’s take a closer look at our proteins.
@@ -574,6 +602,7 @@ Now we have the normalized values for all proteins and can examine our dataset i
 ## Workflow
 
 #### Create subtables for each replicate from the normalized table
+
 ```{r}
 for (i in 1:6) {
 
@@ -585,6 +614,7 @@ for (i in 1:6) {
 ```
 
 #### Create two mean value tables for each replicate, one for control and one for RNAse
+
 ```{r}
 # Mean values from the replicates
 Mittelwert_matrix = t(apply(MS_Table_norm, 1, function(row) {
@@ -604,6 +634,7 @@ colnames(Mittelwerte_RNAse) = paste0(Fraktionsnamen[seq(1, 50, by=2)])
 ```
 
 #### Protein distribution of the two treatments for an example protein to get an overview of the differences
+
 ```{r}
 zeile = 'ACOT9_HUMAN'
 
@@ -777,6 +808,7 @@ find_shoulders = function(binary_mat, Proteinnamen) {
 ```
 
 #### Find shoulder points for the mean value table for control
+
 ```{r}
 #Temporary removal of protein quantity that is below threshold
 Schulter_Mittelwerte_Kontrolle = ifelse(Mittelwerte_Kontrolle > 2, 1, 0) # if greater than 2 then it becomes 1 otherwise the value is set to 0
@@ -800,6 +832,7 @@ Schulterpunkte_Kontrolle = find_shoulders(Schulter_Mittelwerte_Kontrolle, Protei
 ```
 
 #### Find shoulder points for the mean value table for RNAse
+
 ```{r}
 #Temporary removal of protein quantity that is below threshold
 Schulter_Mittelwerte_RNAse = ifelse(Mittelwerte_RNAse > 2, 1, 0) # if greater than 2 then it becomes 1 otherwise the value is set to 0
@@ -822,6 +855,7 @@ Schulterpunkte_RNAse = find_shoulders(Schulter_Mittelwerte_RNAse, Proteinnamen)
 ```
 
 #### Merging values
+
 ```{r}
 # Add values for shoulder points
 Schulterpunkte_Kontrolle$Fraktion_gerundet = round(Schulterpunkte_Kontrolle$Fraktion)
@@ -1078,6 +1112,7 @@ hol_shifts(zeile)
 ```
 
 #### Create a dataframe with all these criteria for each protein
+
 ```{r}
 proteine = unique(c(names(liste_maxima_Ctrl), names(liste_maxima_RNAse)))
 
@@ -1332,8 +1367,13 @@ invisible(dev.off())
 ![](Postervisuals/protein_distribution.png)
 
 # Data Reduction
+
+##### Authors: Mirjam Biollaz, Hasset Gessese, Jette Klempt-Gießing, Alicia Weeber
+
 ## Principal Component Analysis on Original Data
+
 #### Reduction of data-dimensionality by identifying the main axes of variability
+
 ##### Authors: Mirjam Biollaz, Jette Klempt-Gießing, Alicia Weeber
 
 ```{r}
@@ -1351,6 +1391,7 @@ plot(pca$x[,1], pca$x[,2],
 ```
 
 #### Separation of Normalized Data by Experimental Condition
+
 ##### Author: Hasset Gessese
 
 ```{r}
@@ -1377,6 +1418,7 @@ MS_RNase = MS_Table_norm[, rnase_idx]
 ## K-Means Clustering
 
 #### PCA-Based K-Means Clustering for Normalization Assessment
+
 ##### Author: Hasset Gessese
 
 This K-means clustering was used as a quality control check after normalization, in order to ensure that the data structure remained interpretable and consistent (shows seperability and stability). Because the optimal k (k=6) from this approach did not align with our modeling results, we did not use these clusters for biological conclusions
@@ -1482,10 +1524,13 @@ sil_plot +
            fontface = "italic")
 
 ```
+
 #### PCA plot with potential biological conditions (no shift, moderate left shift, strong left shift, moderate right shift, strong right shift)
 
 ##### Authors: Mirjam Biollaz, Jette Klempt-Gießing, Alicia Weeber
+
 To assess whether the clusters formed from the normalized data align with our shift-categories, we visualized the proteins in the PCA colored by their respective shift category.
+
 ```{r}
 # Your PCA object
 pca = prcomp(MS_Table_norm, center = TRUE, scale. = TRUE)
@@ -1518,11 +1563,13 @@ plot.new()           # empty plot window
 legend("center", legend=names(shift_colors),
        col=shift_colors, pch=19, title="Shift Category", cex=0.9)
 ```
-It can be seen that the shift categories do not reflect the cluster analysis, and therefore we cannot draw any conclusions about the previously determined clusters. As a result, this analysis does not hold any further relevance for the next steps. 
 
+It can be seen that the shift categories do not reflect the cluster analysis, and therefore we cannot draw any conclusions about the previously determined clusters. As a result, this analysis does not hold any further relevance for the next steps.
 
 # Data Modelling
+
 ##### Authors: Mirjam Biollaz, Jette Klempt-Gießing, Alicia Weeber
+
 ## Goal:
 
 The general goal of the data modelling is on the one hand to evaluate how well the classification of RBPs oder non-RBPs based on the shift score is. On the other hand the main goal is to further analyze and characterize the identified RNA-dependent proteins by their biophysical characteristics which is done by performing linear and logistic regression analyses.
@@ -1688,7 +1735,6 @@ ggsave("Postervisuals/proteins_per_shift.png", plot = proteins_per_shift, width 
 print(proteins_per_shift)
 ```
 
-
 ## Linear regression analysis: Isoelectric point and mass as predictors for the shift_score
 
 Several linear regression analyses were performed to find correlations between different biophysical characteristics of the proteins and the Shift score. Many of those analyses are not shown anymore because they all did not identify significant predictors for the shift score. One linear regression analysis is performed with the isoelectric point and mass of the proteins as predictors for their shift score. The goal of this regression analysis is to find out whether those two biophysical traits have a significant impact on the Shift_Score and therefore on the categorization of the proteins as RBP or NO_RBP.
@@ -1714,7 +1760,7 @@ svg = export_svg(overview_linear)
 rsvg_png(charToRaw(export_svg(overview_linear)), "Postervisuals/overview_linear.png", width = 3000)
 ```
 
-![](Postervisuals/overview_linear.png){width=300}
+![](Postervisuals/overview_linear.png){width="300"}
 
 ```{r}
 model_linear = lm(Shift_Score ~ pI + Mass_kDa, data = df_ergebnisse_phys)
@@ -1749,6 +1795,7 @@ ggplot(df_ergebnisse_phys, aes(x = Mass_kDa, y = pI)) +
   labs(x = "Mass (kDa)", y = "pI", title = "Density of mass and pI for RBP classification") +
   theme_minimal()
 ```
+
 The R-squared value of the regression analysis is 0.03363 indicating that the isoelectric point and mass alone are not sufficient enough to predict the Shift_Score of the proteins. This result is visualized below. Both traits have a linear correlation with the shift score but there is a big deviation noticeable showing that these traits alone do not eexplain the Shift_Score.
 
 ```{r}
@@ -2015,7 +2062,8 @@ digraph flowchart {
 svg = export_svg(overview_logistic)
 rsvg_png(charToRaw(export_svg(overview_logistic)), "Postervisuals/overview_logistic.png", width = 3000)
 ```
-![](Postervisuals/overview_logistic.png){width=300}
+
+![](Postervisuals/overview_logistic.png){width="300"}
 
 ```{r}
 df_ergebnisse_phys$RBP_nach_Score = factor(df_ergebnisse_phys$RBP_nach_Score, levels = c("NO_RBP", "RBP"))
@@ -2110,11 +2158,12 @@ wilcox.test(Zinc_Count ~ RBP_nach_Score, data = df_ergebnisse_phys)
 ```
 
 # Discussion
+
 Through protein classification into shift categories, we could distinguish RBPs from non-RBPs. Compared to previous studies1,3, 53% of RBPs were classified as non-RBPs, and 18% of non-RBPs as RBPs. The test statistics show high specificity (88%) but low sensitivity (36%), suggesting limited detection of all proteins by the function. This is a limited assumption, as studies only separate RBPs and non-RBPs. Many proteins may be RNA-dependent without directly binding RNA.
 
 The results of the linear regression indicate that the isoelectric point differs in RBPs compared to non-RBPs. The pI is higher in RBPs than in non-RBPs. That coincides with the expectation that RBPs are charged more positively in order to interact with negatively charged RNA. The higher pI in RBPs was also found in literature proving the accuracy of the analysis.
 
-The results of the cluster analysis have to be regarded carefully because the clustering is partially based on the shift score. The shift categories result out of the shift score so the only conclusion from the clustering is that the biophysical characteristics do not distort the classification – not that they explain the classification perfectly. Nevertheless those results contribute to the outcomne of the linear regression that there is a difference between RNA-dependent proteins (in the code categorized as RBP) and RNA-independent proteins (in the code categorized as NO_RBP) in their isoelectric point. Although the mass has a significant p-value in the regression analysis, no actual significant difference between RBPs and no RBPs in their mass is detected. 
+The results of the cluster analysis have to be regarded carefully because the clustering is partially based on the shift score. The shift categories result out of the shift score so the only conclusion from the clustering is that the biophysical characteristics do not distort the classification – not that they explain the classification perfectly. Nevertheless those results contribute to the outcomne of the linear regression that there is a difference between RNA-dependent proteins (in the code categorized as RBP) and RNA-independent proteins (in the code categorized as NO_RBP) in their isoelectric point. Although the mass has a significant p-value in the regression analysis, no actual significant difference between RBPs and no RBPs in their mass is detected.
 
 The conclusion from the logistic regression is that zinc finger motives probably occur more often in RBPs than in non-RBPs. That result is also found in literture and fits the expectation that te motive is one way to bind to RNA.
 
