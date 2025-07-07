@@ -13,19 +13,17 @@
 * Tutor: Michela Pozzi (M.Pozzi@stud.uni-heidelberg.de)
 
 ## Abstract
+<p align="justify">
 Over time, RNA has been attributed an increasingly important role. The molecule no longer serves merely transcription and translation but also has a decisive influence on many other physiological and pathological processes. In this context, RNA is supported by numerous proteins, which can be collectively referred to as “RNA-dependent proteins.” A protein is considered RNA-dependent if its interactome depends on RNA, even if it does not directly bind to RNA itself.
-
+</p> <p align="justify">
 The complexes formed by RNA and proteins are called ribonucleoprotein complexes. These complexes are highly dynamic and can change significantly depending on the cellular task and extracellular stimuli. Besides transcription and translation, they also play a central role in RNA metabolism, regulation of gene expression, and transcriptional regulation of both mRNAs and non-coding RNAs. Therefore, defects in the function of these proteins can be associated with severe diseases.
-
+</p> <p align="justify"> 
 By targeted analysis and identification of proteins that are RNA-dependent, new mechanisms controlled by RNA can be elucidated, potentially leading to new therapeutic approaches.
-
+</p> <p align="justify">
 To this end, we investigated a series of proteins from HeLa cells synchronized in the interphase. For this, a HeLa cell lysate was either treated with an RNase cocktail or left untreated as a control sample. Both samples were each prepared in triplicates, loaded onto a sucrose density gradient, separated into 25 fractions according to density and size, and subsequently the protein content in each fraction was quantified by mass spectrometry.
-
-The underlying idea is that RNA-dependent proteins change their position in the density gradient in the presence or absence of RNA, showing a so-called “shift.” Therefore, the goal of our analysis is to classify proteins as non-, partially, or fully RNA-dependent based on these mass spectrometry data.
-
-## oder eher als ein Block:
-Over time, RNA has been attributed an increasingly important role. The molecule no longer serves merely transcription and translation but also has a decisive influence on many other physiological and pathological processes. In this context, RNA is supported by numerous proteins, which can be collectively referred to as “RNA-dependent proteins.” A protein is considered RNA-dependent if its interactome depends on RNA, even if it does not directly bind to RNA itself.The complexes formed by RNA and proteins are called ribonucleoprotein complexes. These complexes are highly dynamic and can change significantly depending on the cellular task and extracellular stimuli. Besides transcription and translation, they also play a central role in RNA metabolism, regulation of gene expression, and transcriptional regulation of both mRNAs and non-coding RNAs. Therefore, defects in the function of these proteins can be associated with severe diseases. By targeted analysis and identification of proteins that are RNA-dependent, new mechanisms controlled by RNA can be elucidated, potentially leading to new therapeutic approaches. To this end, we investigated a series of proteins from HeLa cells synchronized in the interphase. For this, a HeLa cell lysate was either treated with an RNase cocktail or left untreated as a control sample. Both samples were each prepared in triplicates, loaded onto a sucrose density gradient, separated into 25 fractions according to density and size, and subsequently the protein content in each fraction was quantified by mass spectrometry. The underlying idea is that RNA-dependent proteins change their position in the density gradient in the presence or absence of RNA, showing a so-called “shift.” Therefore, the goal of our analysis is to classify proteins as non-, partially, or fully RNA-dependent based on these mass spectrometry data.
-
+</p> <p align="justify">
+The underlying idea is that RNA-dependent proteins change their position in the density gradient in the presence or absence of RNA, showing a so-called “shift.” Therefore, the goal of our analysis is to classify proteins as non- or fully RNA-dependent based on these mass spectrometry data.
+</p>
 
 ## Repository structure
 
