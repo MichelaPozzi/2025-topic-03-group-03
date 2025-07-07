@@ -47,14 +47,14 @@ The underlying idea is that RNA-dependent proteins change their position in the 
 Link to Full interactive report: **[Data_analysis_project_group_3.3_code.html](./Data_analysis_project_group_3.3_code.html)**  
 (Download the file and open locally in your browser – includes a clickable Table of Contents for easy navigation) 
 
-#### 2. Datasets
+#### 3. Datasets
 - **Mass Spectrometry Data:** **`ms_table`**: Mass spectrometry data (raw input) from HeLa cell gradient fractions
 - **External Databases Used:**
   - [**R-DeeP v3**](https://r-deep3.dkfz.de): Reference dataset for RNA-binding and RNA-dependent protein
   - [**UniProt**](https://www.uniprot.org): Used to retrieve metadata like protein mass, isoelectric point, and functional annotations
 
 
-#### 3. Additional Resources & Poster
+#### 4. Additional Resources & Poster
 
 - **Poster visuals** generated during the analysis are included in the `/postervisuals` folder.
 - The final **poster PDF** summarizing the project is linked here: [Project Poster (PDF)](./Data_analysis_project_group_3.3_poster.pdf)
