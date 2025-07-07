@@ -49,8 +49,7 @@ Over time, RNA has been attributed an increasingly important role. The molecule 
   * Comparison to **[R-DeeP database](https://r-deep3.dkfz.de)**
   
 Link to Full interactive report: **[Data_analysis_project_group_3.3_code.html](./Data_analysis_project_group_3.3_code.html)**  
-(Open locally in your browser – includes a clickable Table of Contents for easy navigation) #brauchen wir eventuell gar nicht als kommentar wenn es geht
-
+(Download the file and open locally in your browser – includes a clickable Table of Contents for easy navigation) 
 
 #### 2. Datasets
 - **Mass Spectrometry Data:** **`ms_table`**: Mass spectrometry data (raw input) from HeLa cell gradient fractions
@@ -63,7 +62,7 @@ Link to Full interactive report: **[Data_analysis_project_group_3.3_code.html](.
 
 - **Poster visuals** generated during the analysis are included in the `/postervisuals` folder.
 - The final **poster PDF** summarizing the project is linked here: [Project Poster (PDF)](./Data_analysis_project_group_3.3_poster.pdf)
-- For full project reproducibility, including raw data, intermediate steps, and even files from exploratory or uncompleted attempts, please refer to our comprehensive archive. This goes beyond the main analysis files, offering a complete historical record of our experimental process.
+- All intermediate results, raw and cleaned data, and exploratory steps are stored in the `/archiv` folder.
 
 ## References
 
