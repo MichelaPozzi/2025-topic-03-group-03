@@ -16,7 +16,7 @@ output:
         line-height: 1.5;
 ---
 
-# HeLa Proteome: Decoding RNA Dependency
+# HeLa Proteome: Cracking the code of RNA-Dependency
 
 ## Characterization of Proteins Based on Biophysical Properties
 
@@ -87,15 +87,18 @@ all(sapply(MS_Table, is.numeric))
 # Plots:
 library(ggplot2) #
 library(dplyr)   #
-library(pracma)  # Für trapz()
+library(pracma)  # #For area calculation with trapezoidal rule
 library(DiagrammeR)
 library(DiagrammeRsvg)
 library(rsvg)
 library(tidyr)
+library(readr)
 library(factoextra) # For Elbow and Silhouette methods
 library(cluster) # For silhouette plots
 library(pheatmap) # For heatmaps
 library(RColorBrewer) # For color palettes in plots
+library(grDevices)  # For polygon drawing
+library(effects)
 ```
 
 
@@ -169,6 +172,7 @@ MS_Table = MS_Table[setdiff(rownames(MS_Table), 'FHOD3_HUMAN'),]
 The goal of this normalization workflow is to reduce technical variation across replicates and enable meaningful comparison of protein distributions across fractions and conditions (e.g., control vs. RNase-treated). By aligning replicate intensities and scaling each profile to a common reference, we ensure that biological patterns are not obscured by measurement noise or loading differences.
 
 ### Workflow Overview
+##### Authors: Mirjam Biollaz, Jette Klempt-Gießing, Alicia Weeber
 
 The diagram below summarizes the key steps of the data cleaning and normalization process:
 
@@ -212,13 +216,12 @@ digraph cleaning_process {
 }
 ")
 
-data_cleaning_workflow
 svg = export_svg(data_cleaning_workflow)
 rsvg_png(charToRaw(svg), file = "Postervisuals/data_cleaning_workflow.png", width = 3000)
 
 
 ```
-![Data cleaning workflow](Postervisuals/data_cleaning_workflow.png)
+![](Postervisuals/data_cleaning_workflow.png)
 
 This workflow ensures consistent, comparable profiles across all proteins and conditions.
 
@@ -349,9 +352,6 @@ rownames(MS_Table_norm) = rownames(MS_Table)
 ### Visualization of Normalization
 
 ```{r}
-library(ggplot2)
-library(dplyr)
-
 # Calculate mean for each column (raw and normalized)
 mean_raw = colMeans(MS_Table, na.rm = TRUE)
 mean_norm = colMeans(MS_Table_norm, na.rm = TRUE)
@@ -414,11 +414,14 @@ Normalization_plot = ggplot(df_all, aes(x = Fraction, y = Value_scaled, color = 
     shape = "Replicate"
   )
 
+# Save plot as PNG
+ggsave(filename = "Postervisuals/Normalization_plot.png", plot = Normalization_plot, width = 16.5, height = 10.2, units = "cm", dpi = 300)
+
 print(Normalization_plot)
 ```
 
 ## Reproducibility
-
+##### Authors: Mirjam Biollaz, Jette Klempt-Gießing, Alicia Weeber
 Explanation which correlation method we use:
 Pearson, not Spearman, because we have many zeros — so [Pearson]{.underline}
 
@@ -495,10 +498,10 @@ p_violin = ggplot(kor_long, aes(x = Pair, y = Correlation, fill = Pair)) +
     legend.position = "none"
   )
 
-print(p_violin)
-
 # Save plot as PNG
-ggsave(filename = "Postervisuals/Violinplot_Correlations.png", plot = p_violin, width = 8, height = 6)
+ggsave(filename = "Postervisuals/Violinplot_Correlations.png", plot = p_violin, width = 13.5, height = 9, units = "cm", dpi = 300)
+
+print(p_violin)
 ```
 
 ### Example plot for median R-value
@@ -557,7 +560,7 @@ plot_correlation = function(data, col1, col2, color = "", save_path = "") {
 }
 
 # plot for median r-value:
-plot_correlation(MS_Table_norm, "Fraction18_Ctrl_Rep2", "Fraction18_Ctrl_Rep3", color = "black", save_path = "Postervisuals/vergleich_plot_ggplot.png")
+plot_correlation(MS_Table_norm, "Fraction12_RNase_Rep1", "Fraction12_RNase_Rep2", color = "black", save_path = "Postervisuals/vergleich_plot_ggplot.png")
 ```
 
 # Data exploration
@@ -722,8 +725,6 @@ Maxima_Mittelwerte_RNAse = find_maxima(Mittelwerte_RNAse_mat)
 
 ```{r}
 #Generate two sub-tables for absolute maxima for control and RNAse
-library(dplyr)
-
 abs_Maxima_Mittelwerte_Kontrolle = Maxima_Mittelwerte_Kontrolle %>%
   group_by(Protein) %>%                   # Grouping by protein
   slice_max(order_by = Wert, n = 1) %>% # Keep line with maximum maxima
@@ -928,19 +929,17 @@ for (i in 1:nrow(shared_peaks)) {
   # Assumption for the t-test that replicates are normally distributed in order to be able to perform the t-test at all
   # Variance test with F-test to see whether control and RNAse have the same variance: important for t-test implementation
   if (length(ctrl_vals) >= 2 && length(rnase_vals) >= 2) {
-    ftest_p = tryCatch(var.test(ctrl_vals, rnase_vals)$p.value, error = function(e) NA) 
-    #The p-value of the F-test (ftest_p) decides whether to assume equal or unequal variances in the next step in the t-test
-    #If F-test p-value >0.05 → variances not significantly different
-    #If F-test p-value ≤0.05 → variances not equal 
-    #t-test, only if variance equals
+    # Paired t-test 
     t_p = tryCatch(
-      t.test(ctrl_vals, rnase_vals, var.equal = (ftest_p > 0.05))$p.value, # Catch possible errors with tryCatch
+      t.test(ctrl_vals, rnase_vals, paired = TRUE)$p.value, 
       error = function(e) NA
     )
-  } 
+  } else {
+    t_p = NA
+  }
+
   p_Werte = rbind(p_Werte, data.frame(Protein = protein, Fraktion = fraktion, P_Value = t_p))
 }
-
 
 # FDR-Correction: adjust all p-values in your overall dataset to control the false discovery rate.
 p_Werte$adj_p = p.adjust(p_Werte$P_Value, method = "BH")
@@ -964,9 +963,6 @@ The following criteria are examined:
 #extract only the columns “Fraction” and “Value” and split this 2-column data based on the grouping variable Combined_Control$Protein.Result: a list in which each element corresponds to a protein ID.
 liste_maxima_Ctrl = split(Combined_Kontrolle[, c("Fraktion", "Wert")], Combined_Kontrolle$Protein)
 liste_maxima_RNAse = split(Combined_RNAse[, c("Fraktion", "Wert")], Combined_RNAse$Protein)
-
-#For area calculation with trapezoidal rule
-library(pracma)  
 
 #define the function
 hol_shifts = function(protein, threshold_rel = 0.3) {
@@ -1271,7 +1267,7 @@ ylim_bereich = range(alle_werte, na.rm = TRUE)
 ylim_bereich[2] = ylim_bereich[2] * 1.15
 
 # first plot for control
-plot(1:25, Ctrl1_norm[zeile,], type = "n",
+plot(1:25, Mittelwerte_Kontrolle[zeile,], type = "n",
      xlab = "Fractions", ylab = "Intensity of Proteins", main = paste("Protein distribution:", zeile),
      ylim = ylim_bereich, cex.lab=1.4, cex.main=1.6, cex.axis=1.2)
 
@@ -1334,65 +1330,6 @@ invisible(dev.off())
 ```
 
 ![Protein_distribution](Postervisuals/protein_distribution.png)
-# Bar plot: show total number of proteins of all shift categories and classify into RBP and non-RBP **das ist noch nicht so wie es soll und das auch ne falsche Funktion** !! nochmal schauen!! + da gibt es noch gar nicht die tabelle - ich hab die jetzt nach ganz unten gepackt
-
-# Das würd ich streichen
-# Scatter-plot of the absolute maxima positions for RNAse and control plotted against each other - wie wollen wir den überhaupt verwenden
-
-```{r}
-#Generate two sub-tables for absolute maxima for control and RNAse
-library(dplyr)
-
-abs_Maxima_Mittelwerte_Kontrolle = Maxima_Mittelwerte_Kontrolle %>%
-  group_by(Protein) %>%                   # Grouping by protein
-  slice_max(order_by = Wert, n = 1) %>% # Keep line with maximum maxima
-  ungroup()
-
-abs_Maxima_Mittelwerte_RNAse = Maxima_Mittelwerte_RNAse %>%
-  group_by(Protein) %>%                   # Grouping by protein
-  slice_max(order_by = Wert, n = 1) %>% # Keep line with maximum maxima
-  ungroup()
-```
-
-```{r}
-merged = merge(
-  abs_Maxima_Mittelwerte_Kontrolle[, c("Protein", "Fraktion")],
-  abs_Maxima_Mittelwerte_RNAse[, c("Protein", "Fraktion")],
-  by = "Protein",
-  suffixes = c("_control", "_rnase")
-)
-
-# Calculation of the number of points above, on and below the line y = x
-above_line = sum(merged$Fraktion_control > merged$Fraktion_rnase)
-on_line = sum(merged$Fraktion_control == merged$Fraktion_rnase)
-below_line = sum(merged$Fraktion_control < merged$Fraktion_rnase)
-
-# Output of the values in the console
-cat("Anzahl Proteine über der Linie:", above_line, "\n")
-cat("Anzahl Proteine auf der Linie:", on_line, "\n")
-cat("Anzahl Proteine unter der Linie:", below_line, "\n")
-
-plot(
-  y = merged$Fraktion_control,
-  x = merged$Fraktion_rnase,
-  xlim = c(0, 25),
-  ylim = c(0, 25),
-  ylab = "Peaks in the control gradient",
-  xlab = "Peaks in the RNase gradient",
-  pch = 16, col = rgb(0,0,0,0.5),
-  main = "Distribution of the maximum values in the fractions"
-)
-abline(0, 1, col = "blue", lty = 2)
-
-# Add text with the numbers at the bottom left
-text(x = 19, y = 2,
-     labels = paste0(
-       "left_Shift: ", above_line, "\n",
-       "no_Shift: ", on_line, "\n",
-       "right_Shift: ", below_line),
-     adj = 0, cex = 0.8, col = "black")
-
-```
 
 # Data Reduction
 ## Principal Component Analysis on Original Data
@@ -1466,10 +1403,6 @@ cluster_colors = c(
   "#7396AD", "#DBCEE6", "#A9B3B5"
 )
 
-# Load required libraries for clustering visualization and analysis
-library(factoextra)  # For cluster visualization and determining cluster number
-library(cluster)     # For silhouette analysis
-
 # Use the Elbow method to estimate the optimal number of clusters (k)
 elbow_plot = fviz_nbclust(pca_data, kmeans, method = "wss") +
   ggtitle("Elbow Method – Optimal Number of Clusters") +
@@ -1497,7 +1430,6 @@ plot(
 )
 
 # Draw convex hulls around points of each cluster to visually group them
-library(grDevices)  # For polygon drawing
 for (k in 1:max(cluster_assignment)) {
   cluster_points = pca$x[cluster_assignment == k, 1:2]
   if (nrow(cluster_points) >= 3) {  # Need at least 3 points to form a polygon
@@ -1531,8 +1463,6 @@ if (n_obs > sample_threshold) {
   sil = silhouette(cluster_assignment, dist_matrix)
 }
 
-library(factoextra)  # For silhouette visualization
-
 # Calculate average silhouette width overall and per cluster
 avg_sil_width = mean(sil[, "sil_width"])
 avg_sil_per_cluster = tapply(sil[, "sil_width"], sil[, "cluster"], mean)
@@ -1558,15 +1488,9 @@ sil_plot +
            fontface = "italic")
 
 ```
-
-# das muss doch weiter runter
-!! warum ist hier noch kein Wort warum wir das nicht verwenden!!
-## Visualization of a PCA defined by 5 shift categories
-
 #### PCA plot with potential biological conditions (no shift, moderate left shift, strong left shift, moderate right shift, strong right shift)
 
-##### Authors: Alicia Weeber
-
+##### Authors: Mirjam Biollaz, Jette Klempt-Gießing, Alicia Weeber
 ```{r}
 # Your PCA object
 pca = prcomp(MS_Table_norm, center = TRUE, scale. = TRUE)
@@ -1605,12 +1529,16 @@ plot.new()           # empty plot window
 legend("center", legend=levels(shift_kategorie),
        col=shift_colors, pch=19, title="Shift Category", cex=0.9)
 ```
+Begründung warum wir das nicht verwenden
+
 
 # Data Modelling
 
 ## General goal of data modelling:
 
 The general goal of the data modelling is on the one hand to evaluate how well the classification of RBPs oder non-RBPs based on the shift score is. On the other hand the main goal is to further analyze and characterize the identified RNA-dependent proteins by their biophysical characteristics which is done by performing linear and logistic regression analyses.
+
+##### Authors: Mirjam Biollaz, Jette Klempt-Gießing, Alicia Weeber
 
 #### Loading the data from R-DeeP and creating a table of RBP listed proteins
 
@@ -1673,9 +1601,6 @@ combined_table = rbind(RBP_Table, No_RBP_Table)
 
 ```{r}
 # Loading data from Uniprot for more characteristics of the proteins
-library(readr)
-library(dplyr)
-
 df_uniprot = read_tsv("Datensätze/Uniprot_infos2.tsv", comment = "#", quote = "")
 
 df_uniprot_counts = df_uniprot %>%
@@ -1710,7 +1635,7 @@ df_ergebnisse_phys$RBP_nach_Score = ifelse(df_ergebnisse_phys$Shift_Category == 
 df_ergebnisse_phys$RBP_nach_Score = factor(df_ergebnisse_phys$RBP_nach_Score, levels = c("NO_RBP", "RBP"))
 ```
 
-### Evaluating the RBP classification based on the shift category and shift score by comparing it to the data from R-DeeP
+## Evaluating the RBP classification based on the shift category and shift score by comparing it to the data from R-DeeP
 
 To compare the classification of proteins based on the Shift Score (predicted RBP status) with the reference classification from a database (R-DeeP) (actual RBP status), a confusion matrix is used. Based on this, standard classification performance metrics, including accuracy, precision, recall, specificity, and the F1 score are calculated.
 
@@ -1720,10 +1645,10 @@ colnames(conf_matrix) = c("predicted_NO_RBP", "predicted_RBP")
 rownames(conf_matrix) = c("actual_NO_RBP", "actual_RBP")
 conf_matrix
 
-TN = 4578
-FP = 800
-FN = 985
-TP = 697
+TN = 4719
+FP = 659
+FN = 1065
+TP = 617
 # fuction to calculate the classification metrics
 calc_metrics = function(TP, TN, FP, FN) {
   accuracy = (TP + TN) / (TP + TN + FP + FN)
@@ -1744,18 +1669,45 @@ testvalues = calc_metrics(TP, TN, FP, FN)
 print(testvalues)
 ```
 
+```{r, echo=FALSE}
+
+# Assign RBP status
+df_ergebnisse_phys = df_ergebnisse_phys %>%
+  mutate(RBP_Gruppe = ifelse(Shift_Category == "no_shift", "non-RBP", "RBP"))
+
+# Calculate sums of proteins per RBP_Group + Shift_Category
+df_summary = df_ergebnisse_phys %>%
+  group_by(RBP_Gruppe, Shift_Category) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  mutate(
+    # Category label with number for the legend
+    Kategorie_mit_n = paste0(Shift_Category, " (", n, ")")
+  )
+
+proteins_per_shift = ggplot(df_summary, aes(x = RBP_Gruppe, y = n, fill = shift_colors)) +
+  geom_col(position = "stack") +
+  scale_fill_manual(values = shift_colors) +
+  labs(title = "Total Amount of Proteins per Shift category",
+       x = "Protein Type", y = "Total Amount of Proteins", fill = "Shift-Category (n)") +
+  theme_poster
+
+ggsave("Postervisuals/proteins_per_shift.png", plot = proteins_per_shift, width = 20, height = 12.5, units = "cm", dpi = 300)
+
+print(proteins_per_shift)
+```
+
+
+
 ## Linear regression analysis: Isoelectric point and mass as predictors for the shift_score
 
 Several linear regression analyses were performed to find correlations between different biophysical characteristics of the proteins and the Shift score. Many of those analyses are not shown anymore because they all did not identify significant predictors for the shift score. One linear regression analysis is performed with the isoelectric point and mass of the proteins as predictors for their shift score. The goal of this regression analysis is to find out whether those two biophysical traits have a significant impact on the Shift_Score and therefore on the categorization of the proteins as RBP or NO_RBP.
 
 ```{r}
-library(DiagrammeR)
-library(rsvg)
-library(DiagrammeRsvg)
-
 overview_linear = grViz("
 digraph flowchart {
-  graph [layout = dot, rankdir = TB]
+  graph [layout = dot, rankdir = TB, fontname = 'Arial']
+  node [fontname = 'Arial']
+  edge [fontname = 'Arial']
 
   # Defining knots
   pi [label = 'pI', shape = box, style = filled, fillcolor = '#A786C2']
@@ -1767,9 +1719,10 @@ digraph flowchart {
   Mass_kDa -> Shift_Score
 }
 ")
-overview_linear
-rsvg_png(charToRaw(export_svg(overview_linear)), "flussdiagramm_shift_score.png", width = 1000, height = 800)
+svg = export_svg(overview_linear)
+rsvg_png(charToRaw(export_svg(overview_linear)), "Postervisuals/overview_linear.png", width = 3000)
 ```
+![](Postervisuals/overview_linear.png)
 
 ```{r}
 model_linear = lm(Shift_Score ~ pI + Mass_kDa, data = df_ergebnisse_phys)
@@ -1783,13 +1736,17 @@ df_plot = df_ergebnisse_phys[complete.cases(df_ergebnisse_phys[, c("RBP_nach_Sco
 df_plot = df_plot[df_plot$Mass_kDa < 2000, ]
 df_plot$predicted_score = predict(model_linear, newdata = df_plot, type = "response")
 
-ggplot(df_plot, aes(x = Mass_kDa, y = pI, color = predicted_score)) +
+shift_score_mass_pI = ggplot(df_plot, aes(x = Mass_kDa, y = pI, color = predicted_score)) +
   geom_point(size = 2, alpha = 0.7) +
   scale_color_gradientn(colours = gradient_colour1) +
   labs(title = "Shift_Score based on mass and pI",
        x = "Mass (kDa)", y = "Isoelectric point (pI)",
        color = "Score") +
   theme_poster
+
+ggsave("Postervisuals/shift_score_mass_pI.png", plot = shift_score_mass_pI, width = 22, height = 13.5, units = "cm", dpi = 300)
+
+print(shift_score_mass_pI)
 ```
 
 ```{r}
@@ -1800,17 +1757,6 @@ ggplot(df_ergebnisse_phys, aes(x = Mass_kDa, y = pI)) +
   labs(x = "Mass (kDa)", y = "pI", title = "Density of mass and pI for RBP classification") +
   theme_minimal()
 ```
-
-```{r}
-# pI und Masse isoliert betrachten als Prädiktor für den Shift Score
-# Zusammenhang zwischen Veränderung von pI bzw. Masse und dem shift score
-# Fläche ist 95% Konfidenzintervall
-
-library(effects)
-
-plot(allEffects(model_linear), main = "Teil-Effekte der Prädiktoren auf Shift Score")
-```
-
 The R-squared value of the regression analysis is 0.03363 indicating that the isoelectric point and mass alone are not sufficient enough to predict the Shift_Score of the proteins. This result is visualized below. Both traits have a linear correlation with the shift score but there is a big deviation noticeable showing that these traits alone do not eexplain the Shift_Score.
 
 ```{r}
@@ -1831,7 +1777,6 @@ ggplot(df_plot, aes(x = Mass_kDa, y = Shift_Score, color = Shift_Category)) +
        x = "Mass (kDa)",
        y = "Shift score") +
   theme_poster
-
 ```
 
 ## Data reduction and cluster analysis
@@ -1852,7 +1797,6 @@ kmeans_result = kmeans(scaled_data, centers = 4)
 
 # Saving cluster assignment
 df_clust$regression_cluster = factor(kmeans_result$cluster)
-
 ```
 
 ```{r}
@@ -1866,8 +1810,6 @@ plot_df = data.frame(PC1 = pca$x[,1],
 
 
 # Plot
-library(ggplot2)
-
 ggplot(plot_df, aes(x = PC1, y = PC2, color = Cluster)) +
   geom_point(size = 2, alpha = 0.7) +
   theme_poster +
@@ -1903,15 +1845,12 @@ plot_df_clean = merge(plot_df_clean,
                        df_ergebnisse_phys[, c("Protein", "Shift_Category")],
                        by = "Protein", all.x = TRUE)
 
-library(ggplot2)
-
 ggplot(plot_df_clean, aes(x = PC1, y = PC2, color = Cluster)) +
   geom_point(size = 2, alpha = 0.8) +
   theme_poster +
   labs(title = "Clustering by pI, mass and shift score ")
 
 # Silhouette plot for the clustering
-library(cluster)
 # distance matrix
 dists = dist(scaled_data_no_outlier)
 
@@ -1924,7 +1863,6 @@ Combining the clustering information with the assignment of each protein to a sh
 
 ```{r}
 # Most abundant shift categroy in each cluster
-library(dplyr)
 # absolute values
 summary_per_cluster = df_clust_no_outlier %>%
   group_by(regression_cluster, Shift_Category) %>%
@@ -1971,11 +1909,15 @@ chisq.test(table_shift_cluster_RBP)
 Both, the shift categories and RBP classification distinguish in between the clusters. These results are visualized below by coloring the proteins by shift category.
 
 ```{r}
-ggplot(plot_df_clean, aes(x = PC1, y = PC2, color = Shift_Category)) +
+cluster_shift_score_mass_pI = ggplot(plot_df_clean, aes(x = PC1, y = PC2, color = Shift_Category)) +
   geom_point(alpha = 0.7, size = 2) +
   scale_color_manual(values = shift_colors, name = "Shift Category") +
   labs(title = "PCA: Clustering by pI, mass and shift score") +
   theme_poster
+
+ggsave("Postervisuals/cluster_shift_score_mass_pI.png", plot = cluster_shift_score_mass_pI, width = 15, height = 9.3, units = "cm", dpi = 300)
+
+print(cluster_shift_score_mass_pI)
 ```
 
 The distribution of each shift category in each cluster is visualzed below.
@@ -1992,9 +1934,9 @@ boxplots_cluster_pI = ggplot(df_clust_no_outlier, aes(x = Shift_Category, y = pI
     axis.ticks.x = element_blank()
   )
 
-boxplots_cluster_pI
+ggsave("Postervisuals/boxplots_cluster_pI.png", plot = boxplots_cluster_pI, width = 15.5, height = 10, units = "cm", dpi = 300)
 
-ggsave("Postervisuals/boxplots_cluster_pI.png", plot = boxplots_cluster_pI, width = 8, height = 6, dpi = 300)
+print(boxplots_cluster_pI)
 ```
 
 To show the difference in the isoelectric point in each shift category, a violin plot is rendered.
@@ -2009,9 +1951,9 @@ violinplot_pI = ggplot(df_clust, aes(x = Shift_Category, y = pI,fill = Shift_Cat
        y = "pI") +
   theme_poster %+replace% theme(legend.position = "none")
 
-violinplot_pI
+ggsave("Postervisuals/violinplot_pI.png", plot = violinplot_pI, width = 15.5, height = 10, units = "cm", dpi = 300)
 
-ggsave("Postervisuals/violinplot_pI.png", plot = violinplot_pI, width = 8, height = 6, dpi = 300)
+violinplot_pI
 ```
 
 Below there is a density distribution of the isoelectric point for the two categories "RBP" and "NO_RBP". It is another visualization to show the difference in the isoelectric point for the different categories.
@@ -2027,8 +1969,6 @@ ggplot(df_ergebnisse_phys, aes(x = pI, fill = RBP_nach_Score)) +
 ```{r}
 # Identifying the actual value of the isoelectric point for RBP and NO_RBP
 # Visible difference between the mean isoelectric points of the classifications
-library(dplyr)
-
 df_ergebnisse_phys %>%
   group_by(RBP_Status) %>%
   summarise(
@@ -2060,14 +2000,12 @@ violinplot_mass
 
 Finding 570 proteins that have an information about a zinc finger motive and are also in the dataset that this analysis is based on, led to the goal of searching for a correlation between a zinc finger motive and the RBP classification. A linear regression analysis with the zinc finger motive was not successful so that a logistic regression is performed with the target variable of RBP classification in RBP or NO_RBP instead of the shift score in the linear regression analysis. Because the isoelectric point was already identified as influencial on both the shift score and the RBP classification, the pI is also included in the logistic regression analysis.
 
-```{r}
-library(DiagrammeR)
-library(rsvg)
-library(DiagrammeRsvg)
-
+```{r, include=FALSE}
 overview_logistic = grViz("
 digraph flowchart {
-  graph [layout = dot, rankdir = TB]
+  graph [layout = dot, rankdir = TB, fontname = 'Arial']
+  node [fontname = 'Arial']
+  edge [fontname = 'Arial']
 
   # Defining knots
   pi [label = 'pI', shape = box, style = filled, fillcolor = '#A786C2']
@@ -2079,8 +2017,12 @@ digraph flowchart {
   Zinc_finger -> RBP_classification
 }
 ")
-overview_logistic
-rsvg_png(charToRaw(export_svg(overview_logistic)), "flussdiagramm_shift_score.png", width = 1000, height = 800)
+
+svg = export_svg(overview_logistic)
+rsvg_png(charToRaw(export_svg(overview_logistic)), "Postervisuals/overview_logistic.png", width = 3000)
+
+```
+![](Postervisuals/overview_logistic.png)
 ```
 
 ```{r}
@@ -2128,7 +2070,6 @@ ggplot(df_ergebnisse_phys, aes(x = pI, fill = RBP_nach_Score)) +
   labs(title = "Densitiy distribution of pI for each RBP score",
        x = "Isoelectric point (pI)", fill = "RBP classification") +
   theme_poster
-
 ```
 
 ## Further analysis of zinc finger motives
@@ -2163,43 +2104,10 @@ ggplot(df_prop, aes(x = group, y = percentage_zinc, fill = group)) +
        y = "Proteins with zinc finger motive (%)",
        x = "Classification") +
   theme_poster %+replace% theme(legend.position = "none")
-
-
 ```
 
 ```{r}
 # Statistical test (wilcoxon test) to see if there is a significant difference of zinc finger amount in RBP and NO_RBP
 # shows that there is a significant difference
 wilcox.test(Zinc_Count ~ RBP_nach_Score, data = df_ergebnisse_phys)
-```
-
-da fehlt irgendwie noch nen schönes Ende
-# Visualisieruung der Ergebnisse der Shift und RBP Klassifizierung
-
-```{r}
-
-# Assign RBP status
-df_ergebnisse_phys = df_ergebnisse_phys %>%
-  mutate(RBP_Gruppe = ifelse(Shift_Category == "no_shift", "non-RBP", "RBP"))
-
-# Calculate sums of proteins per RBP_Group + Shift_Category
-df_summary = df_ergebnisse_phys %>%
-  group_by(RBP_Gruppe, Shift_Category) %>%
-  summarise(n = n(), .groups = "drop") %>%
-  mutate(
-    # Category label with number for the legend
-    Kategorie_mit_n = paste0(Shift_Category, " (", n, ")")
-  )
-
-ggplot(df_summary, aes(x = RBP_Gruppe, y = n, fill = Kategorie_mit_n)) +
-  geom_col(position = "stack") +
-  scale_fill_manual(
-    values = setNames(
-      c("#A786C2", "#8684C2", "#7396AD", "#728083","#DBCEE6"), 
-      df_summary$Kategorie_mit_n
-    )
-  ) +
-  labs(title = "Total Amount of Proteins per Shift category",
-       x = "Protein Type", y = "Total Amount of Proteins", fill = "Shift-Category (n)") +
-  theme_poster
 ```
