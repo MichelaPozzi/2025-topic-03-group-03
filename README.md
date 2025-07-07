@@ -46,7 +46,7 @@ The underlying idea is that RNA-dependent proteins change their position in the 
   
 Link to Full interactive report: **[Data_analysis_project_group_3.3_code.html](./Data_analysis_project_group_3.3_code.html)**  
 (Download the file and open locally in your browser – includes a clickable Table of Contents for easy navigation) 
-> Note: Note: This project was partially developed with assistance from ChatGPT 4.0 — mainly for improving plot design and visual presentation.
+> Note: This project was partially developed with assistance from ChatGPT 4.0 — mainly for improving plot design and visual presentation.
 
 #### 3. Datasets
 - **Mass Spectrometry Data:** **`ms_table`**: Mass spectrometry data (raw input) from HeLa cell gradient fractions
