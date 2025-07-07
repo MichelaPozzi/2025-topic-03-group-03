@@ -58,7 +58,7 @@ MS_Table = read.table("Datensätze/RDeeP_HeLa_Interphase.csv", header=TRUE, row.
 ```
 
 ## Description of the Dataset
-##### Authors: Mirjam Biollaz, Jette Klempt-Gießing, Alicia Weeber, Hasset Gessese
+##### Authors: Mirjam Biollaz, Hasset Gessese, Jette Klempt-Gießing, Alicia Weeber
 The dataset consists of mass spectrometry-based proteomic measurements from HeLa cells subjected to subcellular fractionation with and without RNase treatment.
 
 ```{r}
