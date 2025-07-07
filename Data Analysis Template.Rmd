@@ -11,12 +11,39 @@ output:
     fig_path: "knit/"
 ---
 
+<style>
+  /* Alle Absätze im Blocksatz */
+  p {
+    text-align: justify;
+  }
+  /* Überschriften linksbündig halten */
+  h1, h2, h3, h4 {
+    text-align: left;
+  }
+  /* Gesamtes Inhaltsverzeichnis leicht einrücken */
+  #TOC ul {
+    padding-left: 1.2em;
+  }
+
+  /* Listenelemente normal einrücken, kein hängender Einzug */
+  #TOC ul li {
+    text-indent: 0;
+    white-space: normal; /* Zeilenumbruch erlauben */
+  }
+
+  /* Für Unterlisten (z.B. tiefere Ebenen) noch etwas mehr Einzug */
+  #TOC ul ul {
+    margin-left: 1em;
+  }
+</style>
+
+
 # HeLa Proteome: Cracking the code of RNA-Dependency
 
 ## Characterization of Proteins Based on Biophysical Properties
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6, dpi = 300,
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6, dpi = 600,
   fig.align = "center") 
 ```
 
@@ -33,10 +60,6 @@ MS_Table = read.table("Datensätze/RDeeP_HeLa_Interphase.csv", header=TRUE, row.
 ## Description of the Dataset
 ##### Authors: Mirjam Biollaz, Jette Klempt-Gießing, Alicia Weeber
 The dataset consists of mass spectrometry-based proteomic measurements from HeLa cells subjected to subcellular fractionation with and without RNase treatment.
-
--   **Columns** represent individual fraction samples, including information on **fraction number** and **replicate**.
-
--   **Rows** correspond to **protein identifiers**, each representing a detected protein.
 
 ```{r}
 # Table dimensions
@@ -57,6 +80,9 @@ sum(is.na(MS_Table))
 # Check for Numeric Values
 all(sapply(MS_Table, is.numeric))
 ```
+-   **Columns** represent individual fraction samples, including information on **fraction number** and **replicate**.
+
+-   **Rows** correspond to **protein identifiers**, each representing a detected protein.
 
 -   A total of **7086 proteins** were detected across **150 samples**, covering:
 
@@ -76,7 +102,7 @@ all(sapply(MS_Table, is.numeric))
 
 ### Required Libraries
 
-```{r, message=FALSE, warning=FALSE}
+```{r}
 # for Plotting & Visualization:
 library(ggplot2) # For creating versatile, layered graphics and plots.
 library(pheatmap) # For heatmaps
@@ -1356,7 +1382,7 @@ MS_RNase = MS_Table_norm[, rnase_idx]
 
 This K-means clustering was used as a quality control check after normalization, in order to ensure that the data structure remained interpretable and consistent (shows seperability and stability). Because the optimal k (k=6) from this approach did not align with our modeling results, we did not use these clusters for biological conclusions
 
-```{r kmeans_pca_clustering, message=FALSE, warning=FALSE}
+```{r}
 
 # Perform Principal Component Analysis (PCA) on the normalized data
 pca = prcomp(MS_Table_norm, center = TRUE, scale. = TRUE)
@@ -1460,6 +1486,7 @@ sil_plot +
 #### PCA plot with potential biological conditions (no shift, moderate left shift, strong left shift, moderate right shift, strong right shift)
 
 ##### Authors: Mirjam Biollaz, Jette Klempt-Gießing, Alicia Weeber
+To assess whether the clusters formed from the normalized data align with our shift-categories, we visualized the proteins in the PCA colored by their respective shift category.
 ```{r}
 # Your PCA object
 pca = prcomp(MS_Table_norm, center = TRUE, scale. = TRUE)
@@ -1473,13 +1500,7 @@ shift_kategorie = df_ergebnisse[,14]  # Column 14
 # Check that the order of categories matches the PCA scores
 # If MS_Table_norm and df_ergebnisse have the same row order, it's fine.
 # If not, you need to make sure they are matched properly!
-
-# Convert categories to a factor (optionally with defined order)
-shift_kategorie = factor(shift_kategorie, levels = c("no_shift",
-                                                     "moderate_left_shift",
-                                                     "strong_left_shift",
-                                                     "moderate_right_shift",
-                                                     "strong_right_shift"))
+color_cluster = shift_colors[as.character(shift_kategorie)]
 
 # Layout: 1 row, 2 columns (increase space for legend)
 layout(matrix(c(1,2), 1, 2), widths=c(3.5,1.5))  # Adjusted layout to avoid overlap
@@ -1487,7 +1508,7 @@ layout(matrix(c(1,2), 1, 2), widths=c(3.5,1.5))  # Adjusted layout to avoid over
 # PCA plot
 par(mar=c(5,4,4,2))  # Slightly larger right margin for spacing
 plot(scores[,1], scores[,2],
-     col=shift_colors,
+     col=color_cluster,
      pch=19,
      xlab="PC1", ylab="PC2",
      main="PCA: Coloring by Shift Category")
@@ -1495,19 +1516,17 @@ plot(scores[,1], scores[,2],
 # Legend in separate panel
 par(mar=c(2,0,2,0))  # Minimal vertical padding
 plot.new()           # empty plot window
-legend("center", legend=levels(shift_kategorie),
+legend("center", legend=names(shift_colors),
        col=shift_colors, pch=19, title="Shift Category", cex=0.9)
 ```
-Begründung warum wir das nicht verwenden
+It can be seen that the shift categories do not reflect the cluster analysis, and therefore we cannot draw any conclusions about the previously determined clusters. As a result, this analysis does not hold any further relevance for the next steps. 
 
 
 # Data Modelling
-
-## General goal of data modelling:
+##### Authors: Mirjam Biollaz, Jette Klempt-Gießing, Alicia Weeber
+## Goal:
 
 The general goal of the data modelling is on the one hand to evaluate how well the classification of RBPs oder non-RBPs based on the shift score is. On the other hand the main goal is to further analyze and characterize the identified RNA-dependent proteins by their biophysical characteristics which is done by performing linear and logistic regression analyses.
-
-##### Authors: Mirjam Biollaz, Jette Klempt-Gießing, Alicia Weeber
 
 #### Loading the data from R-DeeP and creating a table of RBP listed proteins
 
@@ -1638,7 +1657,7 @@ testvalues = calc_metrics(TP, TN, FP, FN)
 print(testvalues)
 ```
 
-```{r, echo=FALSE}
+```{r}
 
 # Assign RBP status
 df_ergebnisse_phys = df_ergebnisse_phys %>%
@@ -1653,9 +1672,14 @@ df_summary = df_ergebnisse_phys %>%
     Kategorie_mit_n = paste0(Shift_Category, " (", n, ")")
   )
 
-proteins_per_shift = ggplot(df_summary, aes(x = RBP_Gruppe, y = n, fill = shift_colors)) +
+shift_colors_named = setNames(
+  shift_colors[df_summary$Shift_Category], 
+  df_summary$Kategorie_mit_n
+)
+
+proteins_per_shift = ggplot(df_summary, aes(x = RBP_Gruppe, y = n, fill = Kategorie_mit_n)) +
   geom_col(position = "stack") +
-  scale_fill_manual(values = shift_colors) +
+  scale_fill_manual(values = shift_colors_named) +
   labs(title = "Total Amount of Proteins per Shift category",
        x = "Protein Type", y = "Total Amount of Proteins", fill = "Shift-Category (n)") +
   theme_poster
@@ -1670,7 +1694,7 @@ print(proteins_per_shift)
 
 Several linear regression analyses were performed to find correlations between different biophysical characteristics of the proteins and the Shift score. Many of those analyses are not shown anymore because they all did not identify significant predictors for the shift score. One linear regression analysis is performed with the isoelectric point and mass of the proteins as predictors for their shift score. The goal of this regression analysis is to find out whether those two biophysical traits have a significant impact on the Shift_Score and therefore on the categorization of the proteins as RBP or NO_RBP.
 
-```{r}
+```{r, include = FALSE}
 overview_linear = grViz("
 digraph flowchart {
   graph [layout = dot, rankdir = TB, fontname = 'Arial']
@@ -1690,7 +1714,10 @@ digraph flowchart {
 svg = export_svg(overview_linear)
 rsvg_png(charToRaw(export_svg(overview_linear)), "Postervisuals/overview_linear.png", width = 3000)
 ```
-![](Postervisuals/overview_linear.png)
+
+<div style="text-align: center;">
+  <img src="Postervisuals/overview_linear.png" width="300">
+</div>
 
 ```{r}
 model_linear = lm(Shift_Score ~ pI + Mass_kDa, data = df_ergebnisse_phys)
@@ -1787,7 +1814,7 @@ ggplot(plot_df, aes(x = PC1, y = PC2, color = Cluster)) +
   scale_color_brewer(palette = "Set2")
 ```
 
-This clustering contains an outlier that skews the clustering plot so it has to be removed. The proteins are clustere again and the silhouette plot shows which the best number of clusters in this analysis is.
+This clustering contains an outlier that skews the clustering plot so it has to be removed. The proteins are clustered again and the silhouette plot shows which the best number of clusters in this analysis is.
 
 ```{r}
 # Detecting the outlier and removing it
@@ -1829,7 +1856,7 @@ sil = silhouette(as.numeric(df_clust_no_outlier$regression_cluster), dists)
 plot(sil, main = "Silhouette-Plot for K-Means-Clustering (k = 4)", col = colors_set2, border = NA)
 ```
 
-Combining the clustering information with the assignment of each protein to a shift category, the goal is to find out if there is a visible structure in the clustering based on the information of the shiift category. The result shows that clustering the proteins by pI, mass and shift score does not separate the proteins based on their shift category meaning that it was succesful to visualize that pI and mass explain some of variance of the shift score. Therefore the result is that especially left shift proteins have a different isoelectric point than proteins with no shift.
+Combining the clustering information with the assignment of each protein to a shift category, the goal is to find out if there is a visible structure in the clustering based on the information of the shift category. The result of the clustering shows that pI and mass contribute to the shift score without distorting the underlying classification meaning that it was successful to visualize that pI and mass explain some of variance of the shift score. Therefore, the result is that especially left shift proteins have a different isoelectric point than proteins with no shift as they are the most abundant in cluster 4 and for that reason thy are the most separated from the non-shifting proteins.
 
 ```{r}
 # Most abundant shift categroy in each cluster
@@ -1913,7 +1940,7 @@ To show the difference in the isoelectric point in each shift category, a violin
 
 ```{r}
 violinplot_pI = ggplot(df_clust, aes(x = Shift_Category, y = pI,fill = Shift_Category)) +
-  geom_violin(alpha = 0.4) +
+  geom_violin(alpha = 0.8) +
   geom_boxplot(width = 0.2, outlier.shape = NA, fill = "white") +
   scale_fill_manual(values = shift_colors) +
   labs(title = "Isoelectric point in each shift category",
@@ -1921,7 +1948,7 @@ violinplot_pI = ggplot(df_clust, aes(x = Shift_Category, y = pI,fill = Shift_Cat
        y = "pI") +
   theme_poster %+replace% theme(legend.position = "none")
 
-ggsave("Postervisuals/violinplot_pI.png", plot = violinplot_pI, width = 15.5, height = 10, units = "cm", dpi = 300)
+ggsave("Postervisuals/violinplot_pI.png", plot = violinplot_pI, width = 8, height = 6, dpi = 600)
 
 violinplot_pI
 ```
@@ -1991,7 +2018,7 @@ digraph flowchart {
 svg = export_svg(overview_logistic)
 rsvg_png(charToRaw(export_svg(overview_logistic)), "Postervisuals/overview_logistic.png", width = 3000)
 ```
-![](Postervisuals/overview_logistic.png)
+![](Postervisuals/overview_logistic.png){width=300}
 
 ```{r}
 df_ergebnisse_phys$RBP_nach_Score = factor(df_ergebnisse_phys$RBP_nach_Score, levels = c("NO_RBP", "RBP"))
@@ -2069,12 +2096,12 @@ proteins_zinc_motiv = ggplot(df_prop, aes(x = group, y = percentage_zinc, fill =
   scale_fill_manual(values = color_rbp) +
   scale_y_continuous(labels = function(x) paste0(x, "%"), limits = c(0, max(df_prop$percentage_zinc) + 5)) +
   labs(title = "Amount of proteins with zinc finger motive",
-       y = "Proteins with zinc finger motive (%)",
+       y = "Proteins shift_colors_named (%)",
        x = "Classification") +
   theme_poster %+replace% theme(legend.position = "none")
 
 # Save plot as PNG
-ggsave(filename = "Postervisuals/proteins_zinc_motiv.png", plot = proteins_zinc_motiv, width = 11.7, height = 7.5, units = "cm", dpi = 300)
+ggsave(filename = "Postervisuals/proteins_zinc_motiv.png", plot = proteins_zinc_motiv, width = 11.7, height = 7.5, units = "cm", dpi = 600)
 
 print(proteins_zinc_motiv)
 ```
@@ -2088,6 +2115,12 @@ wilcox.test(Zinc_Count ~ RBP_nach_Score, data = df_ergebnisse_phys)
 # Discussion
 Through protein classification into shift categories, we could distinguish RBPs from non-RBPs. Compared to previous studies1,3, 53% of RBPs were classified as non-RBPs, and 18% of non-RBPs as RBPs. The test statistics show high specificity (88%) but low sensitivity (36%), suggesting limited detection of all proteins by the function. This is a limited assumption, as studies only separate RBPs and non-RBPs. Many proteins may be RNA-dependent without directly binding RNA.
 
-The results of the linear regression indicate that the isoelectric point differs in RBPs compared to non-RBPs. The pI is higher in RBPs than in non-RBPs. That coincides with the expectation that RBPs are charged more positively in order to interact with negatively charged RNA. The higher pI in RBPs is also found in literature proving the accuracy of the analysis2.
-The conclusion from the logistic regression is that zinc finger motives probably occur more often in RBPs than in non-RBPs. That result is also found in literature and fits the expectation that the motive is one way to bind to RNA4. To further analyze the characteristics of RNA-dependent proteins more data would have been needed as the amount of information for each characteristic often is  not sufficient in the data that was used.
+The results of the linear regression indicate that the isoelectric point differs in RBPs compared to non-RBPs. The pI is higher in RBPs than in non-RBPs. That coincides with the expectation that RBPs are charged more positively in order to interact with negatively charged RNA. The higher pI in RBPs was also found in literature proving the accuracy of the analysis.
 
+The results of the cluster analysis have to be regarded carefully because the clustering is partially based on the shift score. The shift categories result out of the shift score so the only conclusion from the clustering is that the biophysical characteristics do not distort the classification – not that they explain the classification perfectly. Nevertheless those results contribute to the outcomne of the linear regression that there is a difference between RNA-dependent proteins (in the code categorized as RBP) and RNA-independent proteins (in the code categorized as NO_RBP) in their isoelectric point. Although the mass has a significant p-value in the regression analysis, no actual significant difference between RBPs and no RBPs in their mass is detected. 
+
+The conclusion from the logistic regression is that zinc finger motives probably occur more often in RBPs than in non-RBPs. That result is also found in literture and fits the expectation that te motive is one way to bind to RNA.
+
+To further analyze the characteristics of RNA-dependent proteins, more data would have been needed as the amount of information for each characterisitc often was not sufficient in the data that was used.
+
+Overall, the results of the whole analysis of mass spectrometry data can be regarded as successful because categorizing the proteins in RNA-dependent and RNA-independent by their shifting behaviour is mostly compliant to databases and the expectations of specific RNA-dependent characteristics are met. The code of RNA-dependency therefore is cracked to some extend.
