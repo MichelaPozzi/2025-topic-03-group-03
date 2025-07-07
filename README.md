@@ -2,14 +2,15 @@
 ## Characterization of Proteins Based on Biophysical Properties
 
 ### Authors
-Mirjam Biollaz (mirjam.biollaz@stud.uni-heidelberg.de)
-Hasset Gesesse (hasset.gesesse@stud.uni-heidelberg.de)
-Jette Klempt-Gießing (jette.klempt-giessing@stud.uni-heidelberg.de)
-Alicia Weeber (alicia.weeber@stud.uni-heidelberg.de)
+
+* Mirjam Biollaz (mirjam.biollaz@stud.uni-heidelberg.de)
+* Hasset Gesesse (hasset.gesesse@stud.uni-heidelberg.de)
+* Jette Klempt-Gießing (jette.klempt-giessing@stud.uni-heidelberg.de)
+* Alicia Weeber (alicia.weeber@stud.uni-heidelberg.de)
 
 ### Supervisors
-Dr. Maïwen Caudron-Herger (m.caudron@dkfz.de)
-Tutor: Michela Pozzi (M.Pozzi@stud.uni-heidelberg.de)
+* Dr. Maïwen Caudron-Herger (m.caudron@dkfz.de)
+* Tutor: Michela Pozzi (M.Pozzi@stud.uni-heidelberg.de)
 
 ## Abstract
 Over time, RNA has been attributed an increasingly important role. The molecule no longer serves merely transcription and translation but also has a decisive influence on many other physiological and pathological processes. In this context, RNA is supported by numerous proteins, which can be collectively referred to as “RNA-dependent proteins.” A protein is considered RNA-dependent if its interactome depends on RNA, even if it does not directly bind to RNA itself.
