@@ -38,7 +38,7 @@ output:
 </style>
 
 
-# HeLa Proteome: Cracking the code of RNA-Dependency
+# HeLa Proteome: Cracking the code of RNA-dependency
 
 ## Characterization of Proteins Based on Biophysical Properties
 
@@ -1715,9 +1715,7 @@ svg = export_svg(overview_linear)
 rsvg_png(charToRaw(export_svg(overview_linear)), "Postervisuals/overview_linear.png", width = 3000)
 ```
 
-<div style="text-align: center;">
-  <img src="Postervisuals/overview_linear.png" width="300">
-</div>
+![](Postervisuals/overview_linear.png){width=300}
 
 ```{r}
 model_linear = lm(Shift_Score ~ pI + Mass_kDa, data = df_ergebnisse_phys)
