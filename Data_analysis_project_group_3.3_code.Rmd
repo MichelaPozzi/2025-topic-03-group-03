@@ -105,7 +105,6 @@ all(sapply(MS_Table, is.numeric))
 ```{r}
 # for Plotting & Visualization:
 library(ggplot2) # For creating versatile, layered graphics and plots.
-library(pheatmap) # For heatmaps
 library(RColorBrewer) # Provides nice color palettes that can be used in plots for better aesthetics and color consistency.
 library(grDevices)  # Contains functions for drawing polygons and other graphic primitives
 library(DiagrammeR) # For creating diagrams and flowcharts programmatically using graph syntax.
